@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.5 (graphics quality written into Active.sav + GFX diagnostic log)**
+Last updated: 2026-11-16 · Build: **v1.1.6 (corrected Active.sav quality levels — fixes FPS clamped to 40-60)**
+
+## v1.1.6 changes
+
+1. **Graphics level mapping corrected and verified on v4.7.0** — a device with Super Smooth selected in game writes `BattleRenderQuality=1`, proving the real mapping: 1 Super Smooth · 2 Smooth · 3 Balanced · 4 HD · 5 HDR · 6 Ultra HDR · 7 Extreme HDR. The previous mapping (Smooth=1 … Super Smooth=6) made the game read level 6 as Ultra HDR — and **higher quality levels clamp the allowed frame rate** (Ultra HDR caps at Ultra/40), so a wrong level silently killed the FPS unlock. This was the cause of "applied but FPS stuck at 40-60".
+2. **"In game now" card** — the Current config card is replaced by a simpler card showing the frame rate and graphics the game will actually use, in the game's own names (Extreme / Extreme+ / Ultra Extreme; Super Smooth … Extreme HDR). Raw CVar rows and the hero card are removed.
+3. Warning is logged when FPS is unlocked without a graphics preset (the save's existing graphics level may clamp the frame rate).
+4. Tests updated for the corrected mapping.
 
 ## v1.1.5 changes
 
