@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.7 (refresh-rate lock above 60 FPS, safe value-only restore, simpler screen)**
+Last updated: 2026-11-16 · Build: **v1.1.8 (GFX-only app, redesigned screen, HDR preset + anti-aliasing)**
+
+## v1.1.8 changes
+
+1. **GFX is now the app's only screen** — onboarding, bottom bar and the other tabs are gone from the UI (their code is kept but unreferenced); the in-app GitHub update banner sits under the GFX header.
+2. **Redesigned GFX screen** — hero card with device/Shizuku status and the frame rate + graphics the game will use, segmented game and FPS pickers, resolution slider, a 3-column graphics grid (Super Smooth available for every variant), anti-aliasing toggle, backup card, and a sticky swipe-to-apply bar.
+3. **HDR preset added** (game level 5 — HD with the HDR lighting pipeline) and **anti-aliasing toggle** (`r.MobileMSAA` 4x on / 1x off, off by default since MSAA costs frame rate).
+4. **Diagnostics extended** — the scan now covers every .ini under `Saved/` for frame-rate settings, and the game's Active.sav values are logged before Restore.
 
 ## v1.1.7 changes
 
