@@ -48,6 +48,17 @@ class SystemSettingsManager(private val context: Context) {
         null
     }
 
+    /**
+     * Bug-fix companion to [readBrightness]: while SCREEN_BRIGHTNESS_MODE is
+     * AUTO, Android ignores manual brightness writes, so any write would be
+     * unverifiable theater. Callers must treat AUTO as unsupported.
+     */
+    fun readBrightnessMode(): Int? = try {
+        Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
+    } catch (_: Exception) {
+        null
+    }
+
     // ---- Settings.Global (requires WRITE_SECURE_SETTINGS; granted via Shizuku op) ----
 
     fun canWriteSecureSettings(): Boolean = try {

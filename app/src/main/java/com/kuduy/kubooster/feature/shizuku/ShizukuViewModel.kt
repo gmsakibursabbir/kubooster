@@ -3,7 +3,6 @@ package com.kuduy.kubooster.feature.shizuku
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.kuduy.kubooster.data.optimization.OptimizationRepositoryImpl
 import com.kuduy.kubooster.di.AppContainer
 import com.kuduy.kubooster.domain.model.OptimizationOperationId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +62,8 @@ class ShizukuViewModel(
                     else -> "Operation ran (exit $exit) but the permission is not active yet. Try again after restarting Shizuku."
                 }
                 if (granted) {
-                    (container.optimizationRepository as? OptimizationRepositoryImpl)?.markSecureWriteAvailable()
+                    // The optimization screen probes WRITE_SECURE_SETTINGS live,
+                    // so no cached flag needs refreshing here.
                 }
                 _state.value = _state.value.copy(
                     working = false,

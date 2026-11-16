@@ -35,6 +35,14 @@ class SettingsViewModel(
         }
     }
 
+    /** Re-reads the journal so the count is current whenever the screen is shown. */
+    fun refreshCount() {
+        viewModelScope.launch {
+            val count = container.restorationRepository.pendingCount()
+            (pendingRestoreCount as MutableStateFlow<Int>).value = count
+        }
+    }
+
     fun setThemeFollowSystem(value: Boolean) {
         viewModelScope.launch {
             container.userPreferences.setThemeFollowSystem(value)

@@ -88,9 +88,11 @@ class OptimizationRepositoryImpl(
                 )
             }
 
+            val brightnessMode = settings.readBrightnessMode()
             val brightnessOk = settings.canWriteSystemSettings() &&
                 settings.readSystemFloat(SystemSettingsManager.KEY_PEAK_REFRESH_RATE) != null &&
-                settings.readBrightness() != null
+                settings.readBrightness() != null &&
+                brightnessMode == android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
             add(
                 OptimizationProposal(
                     operationId = OptimizationOperationId.SET_REDUCED_BRIGHTNESS,
@@ -98,7 +100,13 @@ class OptimizationRepositoryImpl(
                     title = "Reduce screen brightness for gaming",
                     description = "Lowers brightness to a comfortable gaming level, reducing heat and battery drain. Your original brightness is recorded and can be restored.",
                     supported = brightnessOk,
-                    unsupportedReason = if (brightnessOk) null else "System settings write permission unavailable",
+                    unsupportedReason = when {
+                        !settings.canWriteSystemSettings() -> "System settings write permission unavailable"
+                        brightnessMode == null -> "Brightness mode unreadable on this device"
+                        brightnessMode != android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL ->
+                            "Adaptive (auto) brightness is on — Android ignores manual brightness changes while it is on. Turn off adaptive brightness in system settings first."
+                        else -> null
+                    },
                     reversible = true,
                 ),
             )
@@ -117,23 +125,14 @@ class OptimizationRepositoryImpl(
         }
     }
 
-    private fun canWriteSecure(): Boolean =
-        settings.readGlobalFloat(SystemSettingsManager.KEY_LOW_POWER) != null && secureWritePossible
-
     /**
-     * Only true after a real probe write of the current low_power value succeeded.
-     * Set once per process after the Shizuku flow grants WRITE_SECURE_SETTINGS.
+     * Live probe, not a cached flag: a cached boolean reset on process restart
+     * and wrongly showed already-granted operations as unavailable after the
+     * app was closed and reopened. The probe write of the current `low_power`
+     * value succeeds only when WRITE_SECURE_SETTINGS is actually granted.
      */
-    @Volatile
-    var secureWritePossible: Boolean = false
-        private set
-
-    fun markSecureWriteAvailable() {
-        secureWritePossible = settings.canWriteSecureSettings().also { probed = it }
-    }
-
-    @Volatile
-    private var probed: Boolean = false
+    private fun canWriteSecure(): Boolean =
+        settings.canWriteSecureSettings()
 
     override suspend fun apply(
         proposals: List<OptimizationProposal>,

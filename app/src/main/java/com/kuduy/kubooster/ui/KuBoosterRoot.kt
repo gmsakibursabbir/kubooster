@@ -174,6 +174,7 @@ fun KuBoosterRoot(container: AppContainer) {
             }
             composable(Routes.SETTINGS) {
                 val vm: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container))
+                LaunchedEffect(Unit) { vm.refreshCount() }
                 val settingsState by vm.state.collectAsState()
                 val pending by vm.pendingRestoreCount.collectAsState()
                 SettingsScreen(

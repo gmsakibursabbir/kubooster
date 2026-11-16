@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **debug APK + signed release APK produced**
+Last updated: 2026-11-16 · Build: **v1.0.1 bug-fix release (debug APK + signed release APK produced)**
+
+## v1.0.1 bug fixes
+
+1. **Theme toggle had no effect** — the "Follow system dark mode" preference was stored but never read by MainActivity; now wired.
+2. **Brightness could report a false "Applied & verified"** — when adaptive (auto) brightness is on, Android ignores manual brightness writes. The proposal is now marked unsupported with that exact reason instead of claiming success.
+3. **Boost operations wrongly unavailable after app restart** — WRITE_SECURE_SETTINGS availability was cached in a volatile flag that reset on process restart, so already-granted operations (battery saver, animation scale) appeared unavailable after closing and reopening the app. Replaced with a live probe write.
+4. **Stale "pending restorable changes" count** in Settings — now re-read every time the screen is shown.
 
 ## Completed
 
@@ -47,8 +54,8 @@ Last updated: 2026-11-16 · Build: **debug APK + signed release APK produced**
 
 | Artifact | Status |
 |---|---|
-| `app/build/outputs/apk/debug/app-debug.apk` | Built — 17.33 MB (unminified) |
-| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **1.65 MB**; `apksigner verify` passes (SHA-256 `42d64127…70da`) |
+| `app/build/outputs/apk/debug/app-debug.apk` | Built — v1.0.1 |
+| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **1.65 MB**; `apksigner verify` passes |
 
 Signing: keystore password mismatch in `keystore.properties` was the only release-build blocker; corrected against the keystore note copy kept outside the repository (`J:\devtools\kubooster-keystore-note.txt`).
 
