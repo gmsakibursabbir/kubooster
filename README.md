@@ -1,47 +1,173 @@
+<div align="center">
+
+<img src="kubooster-logo.png" alt="KuBooster logo" width="140"/>
+
 # KuBooster
 
-**KuBooster by KUDUY** — *Play Smooth. Stay Cool.*
+**Play Smooth. Stay Cool.**
 
-A lightweight, honest Android gaming performance companion focused on PUBG Mobile compatibility. KuBooster reads your device's real capabilities through public Android APIs, checks PUBG Mobile installation and version against a bundled compatibility manifest, recommends graphics presets and FPS targets that fit your hardware, and applies a small set of reversible, user-confirmed system settings.
+*A lightweight, honest Android gaming performance companion for PUBG Mobile — by KUDUY*
 
-KuBooster **never** modifies game files, game memory, or anti-cheat systems, and never reports a change it did not actually verify.
+[![Release](https://img.shields.io/badge/release-v1.0.2-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
+[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android)](#-installation)
+[![Target](https://img.shields.io/badge/target-Android%2014-3DDC84?style=flat-square&logo=android)](#-installation)
+[![Size](https://img.shields.io/badge/APK-~2%20MB-0163FA?style=flat-square)](https://github.com/gmsakibursabbir/kubooster/releases)
+[![No Ads](https://img.shields.io/badge/ads-none-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
+[![Offline](https://img.shields.io/badge/network-none-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
+[![Game mods](https://img.shields.io/badge/game%20files-never%20touched-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
 
-## Features
+</div>
 
-- **Device Intelligence** — manufacturer, model, CPU (cores/ABIs), GPU (renderer, vendor, OpenGL ES, Vulkan), RAM tier, Android version, all from public APIs. Unknown values are shown as "Unknown", never guessed.
-- **Display Capability** — current refresh rate and all advertised Display.Mode rates, kept strictly separate from game FPS.
-- **PUBG Detection** — supports PUBG Mobile Global (`com.tencent.ig`), PUBG Mobile Flash (`com.tencent.igfit`), KR (`com.pubg.krmobile`), VN (`com.vng.pubgmobile`), and BGMI (`com.pubg.imobile`) via a narrow `<queries>` declaration. Installed version is read from PackageManager, never assumed.
-- **Compatibility Engine** — combines device + display + bundled manifest into a confidence-scored report. FPS options are labeled Verified / Unverified / Not supported; display Hz is never reported as game FPS.
-- **Graphics presets** — Smooth Performance, Balanced, High Quality, plus a persisted custom profile (DataStore).
-- **Boost performance** — a confirmable, transactional flow that may change peak/min refresh-rate preference, brightness, battery saver, and animation scale. Every applied change is verified by read-back and recorded for restoration.
-- **Restoration Manager** — transaction journal in DataStore; restore one change or all of them, always to the recorded *original* value.
-- **Optional Shizuku** — used only to grant `WRITE_SECURE_SETTINGS` to this app via the documented binder API with a compile-time-fixed command. Core features work fully without Shizuku.
+---
 
-## Build
+## 📖 About
+
+KuBooster reads your device's **real** capabilities through public Android APIs, checks which PUBG Mobile variants are installed and at what version, recommends FPS targets and graphics presets that genuinely fit your hardware, and applies a small set of **reversible, user-confirmed system settings**.
+
+It is built on one non-negotiable principle: **it never shows you a number it cannot verify, and it never modifies the game.**
+
+- ✅ Real device intelligence — CPU, GPU, RAM, display modes, thermal, battery
+- ✅ Real game detection — 5 PUBG Mobile variants, exact version comparison
+- ✅ Real, reversible optimization — verified by read-back, restorable anytime
+- 🚫 No fake "RAM cleaned: 2 GB" theater, no fake FPS promises, no game file edits
+
+## ✨ Features
+
+| | Feature | What it does |
+|---|---|---|
+| 🖥️ | **Device Diagnostics** | Full hardware report: CPU cores/ABIs, GPU renderer + OpenGL ES + Vulkan, RAM tier, Android/patch level. Unavailable values say *Unknown* with the reason. |
+| 📱 | **Display Intelligence** | Current refresh rate vs. all advertised modes — kept strictly separate, because a 120 Hz panel ≠ 120 FPS gameplay. |
+| 🎮 | **Game Detection** | PUBG Mobile Global (`com.tencent.ig`), **PUBG Mobile Flash** (`com.tencent.igfit`), Korea, Vietnam, BGMI (`com.pubg.imobile`) — with exact installed version. |
+| 🚀 | **Boost Performance** | A confirmable flow that may set peak/min refresh-rate preference, brightness, battery saver and animation scale. Every change is **verified by read-back** and recorded for restoration. |
+| ↩️ | **One-tap Restore** | Every change is journaled with its *original* value. Restore one change or all — always back to exactly what was there before. |
+| 🎨 | **Graphics Presets** | Smooth Performance / Balanced / High Quality, tailored to your RAM tier and thermal state — applied by you inside PUBG's own settings menu. |
+| ⚡ | **Shizuku (optional)** | Grants `WRITE_SECURE_SETTINGS` for battery-saver & animation controls via two compile-time-fixed commands. Every core feature works without it. |
+
+## 📲 Installation
+
+**No root. No ADB. No PC.**
+
+1. Go to [**Releases**](https://github.com/gmsakibursabbir/kubooster/releases)
+2. Download the latest APK (e.g. `kubooster-v1.0.2-release.apk`)
+3. Tap the file on your phone. If asked, allow **"Install unknown apps"** for your file manager
+4. Open KuBooster — onboarding runs real device detection immediately
+
+> Updates install over the previous version without uninstalling (same signing key).
+
+## 🚀 Quick Start Guide
+
+### 1 · Onboarding
+KuBooster reads your hardware, display modes, memory, thermal and battery state, and checks installed PUBG variants — everything stays on your device.
+
+### 2 · Dashboard
+Your device at a glance: current refresh rate, RAM, battery, thermal status, PUBG install status and compatibility confidence. Tap **Refresh** anytime.
+
+### 3 · Boost Performance
+Tap **Boost performance** → review the list of proposed changes (each one explains what it does and that it is reversible) → check only what you want → **Apply N changes**.
+
+- Each result is labeled **Applied & verified**, **Applied, unverified**, or **Failed** — never a fake success
+- Tap **Restore all KuBooster changes** to put everything back exactly as it was
+- Items shown as *Unavailable* include the exact reason (e.g. "This device does not expose the standard refresh-rate preference key")
+
+### 4 · FPS Profiles
+See the honest state of each FPS option on **your** device:
+
+| Label | Meaning |
+|---|---|
+| **Verified** | Documented for your game version in the bundled compatibility manifest |
+| **Unverified** | Your display supports it, but game-side support is not documented yet |
+| **Not supported** | Your display does not advertise this refresh rate |
+
+> **A 120 Hz display does not mean 120 FPS gameplay.** The game renders FPS on its own — KuBooster never reports the display rate as game FPS.
+
+### 5 · Graphics Optimizer
+Pick a preset (Smooth / Balanced / Quality) and follow the concrete in-game settings shown for your hardware tier. **You apply them inside PUBG's own settings menu, once.** PUBG stores those settings itself — that's why they persist every time you reopen the game. KuBooster writes nothing into the game.
+
+### 6 · Shizuku (optional)
+Two extra controls (battery saver, animation speed) need a system-level permission. KuBooster shows the exact command it will run (`pm grant com.kuduy.kubooster android.permission.WRITE_SECURE_SETTINGS`) before asking. Skip it freely — the app is fully functional without it.
+
+## 🔐 Safety & Anti-Ban Policy
+
+**The honest answer first:** no third-party app can promise 100% that an account will never be banned — bans are decided solely by Tencent/Level Infinite's anti-cheat. Anyone promising otherwise is lying to you.
+
+What **is** guaranteed by KuBooster's design:
+
+- 🚫 **Never modifies the game** — no PUBG files, folders, config, memory, or processes. Ever. The only operations the app can perform are fixed at compile time and audited in [`docs/SECURITY.md`](docs/SECURITY.md)
+- 🚫 **No gameplay automation** — no aim assist, no recoil tools, no injected code
+- 🚫 **No arbitrary shell commands** — the Shizuku allowlist contains exactly two commands (`pm grant` / `pm revoke` of our own permission), visible in the app before anything runs
+- 🚫 **No network** — no INTERNET permission, no analytics, no ads, fully offline
+- ✅ **In-game settings stay yours** — graphics presets are applied by *you* inside PUBG's settings menu, the way the game intends. Nothing for anti-cheat to flag
+- ✅ **System settings are standard** — refresh-rate preference, brightness, battery saver, animation scale are ordinary Android settings, changed reversibly and verified
+
+KuBooster performs zero game modification, so it adds **no ban risk from its own side**.
+
+## 🛠️ Building from Source
 
 Requirements: JDK 17, Android SDK (compileSdk 35, build-tools 35.0.0).
 
 ```bash
-./gradlew :app:assembleDebug      # debug APK
-./gradlew :app:assembleRelease    # signed release APK (needs keystore.properties)
-./gradlew :app:testDebugUnitTest  # JVM unit tests
+# Debug APK
+./gradlew :app:assembleDebug
+
+# Signed release APK (requires git-ignored keystore.properties — see docs/RELEASE.md)
+./gradlew :app:assembleRelease
+
+# Unit tests (20 JVM tests)
+./gradlew :app:testDebugUnitTest
 ```
 
-The release signing key is configured through `keystore.properties` (git-ignored). See `docs/RELEASE.md`.
+Artifacts land in `app/build/outputs/apk/{debug,release}/`.
 
-Output: `app/build/outputs/apk/{debug,release}/`
+## 📁 Project Structure
 
-## Permissions
+```
+com.kuduy.kubooster
+├── core/          dispatchers, design system (dark-first Material 3, Inter)
+├── domain/        pure models + repository interfaces
+├── data/          engines: device, display, game, compatibility, FPS,
+│                  graphics, optimization, restoration, Shizuku
+├── system/        audited Settings wrapper (compile-time key allowlist)
+├── feature/       onboarding, dashboard, fps, graphics, diagnostics,
+│                  shizuku, optimization, settings (Compose UI)
+└── di/            explicit hand-written dependency graph
+```
 
-- `WRITE_SETTINGS` — only used after the user explicitly grants it through the system "Modify system settings" screen, for reversible brightness/refresh-rate changes.
-- Narrow package visibility for the five PUBG variants only.
-- No INTERNET, location, camera, microphone, contacts, SMS, accessibility, VPN, or device-administrator permissions. No analytics, no ads, works offline.
+## 📚 Documentation
 
-## Documentation
+| Doc | Contents |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Module layout, engines, design decisions |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Privilege model, operation allowlist, prohibited behaviors |
+| [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Manifest schema and verification policy |
+| [`docs/TESTING.md`](docs/TESTING.md) | Test coverage + open on-device checklist |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | Signing and distribution |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Current status and known limitations |
 
-- `docs/ARCHITECTURE.md` — module layout, engines, design decisions
-- `docs/SECURITY.md` — security posture, operation allowlist, prohibited behaviors
-- `docs/COMPATIBILITY.md` — manifest schema and verification policy
-- `docs/TESTING.md` — test coverage and device-validation checklist
-- `docs/PROJECT_STATUS.md` — current status and known limitations
-- `docs/RELEASE.md` — signing and distribution
+## ❓ FAQ
+
+**Will my account get banned?**
+KuBooster performs zero game modification, so it adds no ban risk from its own side. No app can control anti-cheat outcomes — be suspicious of any that claim otherwise.
+
+**Does the GFX/FPS setting survive closing the game?**
+Yes. The system-settings changes KuBooster makes (refresh-rate preference, animation speed, etc.) are **persistent Android settings** — they keep working across game sessions until you restore them. In-game graphics settings are set once inside PUBG and kept by the game itself.
+
+**Is root or ADB required?**
+No. Core features work with plain permissions. Shizuku (optional, no root needed) only unlocks two extra settings controls.
+
+**Why do some Boost items show "Unavailable"?**
+Honesty. E.g. many OEM skins don't expose the standard refresh-rate key — the app tells you that instead of pretending.
+
+**Why are FPS options "Unverified"?**
+The bundled manifest documents game-side FPS support only when real evidence exists. Display capability alone is never promoted to a game claim.
+
+## ⚠️ Disclaimer
+
+KuBooster is an independent utility by **KUDUY**. It is not affiliated with, endorsed by, or sponsored by PUBG Corporation, KRAFTON, Tencent, or Level Infinite. PUBG Mobile is a trademark of its respective owners. Use of the app is at your own discretion.
+
+---
+
+<div align="center">
+
+**KUDUY** · *Play Smooth. Stay Cool.*
+
+</div>
