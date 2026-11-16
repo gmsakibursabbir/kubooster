@@ -1,5 +1,11 @@
 package com.kuduy.kubooster.ui
 
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -12,9 +18,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import com.kuduy.kubooster.di.AppContainer
 import com.kuduy.kubooster.feature.dashboard.DashboardScreen
 import com.kuduy.kubooster.feature.dashboard.DashboardViewModel
@@ -40,6 +50,7 @@ import com.kuduy.kubooster.feature.settings.SettingsScreen
 import com.kuduy.kubooster.feature.settings.SettingsViewModel
 import com.kuduy.kubooster.feature.shizuku.ShizukuScreen
 import com.kuduy.kubooster.feature.shizuku.ShizukuViewModel
+import com.kuduy.kubooster.feature.update.UpdateViewModel
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -126,14 +137,39 @@ fun KuBoosterRoot(container: AppContainer) {
             }
             composable(Routes.DASHBOARD) {
                 val vm: DashboardViewModel = viewModel(factory = DashboardViewModel.factory(container))
+                val updateVm: UpdateViewModel = viewModel(factory = UpdateViewModel.factory(container, autoCheckOnLaunch = true))
                 val dashboardState by vm.state.collectAsState()
+                val updateState by updateVm.state.collectAsState()
+                val context = LocalContext.current
+                DisposableEffect(Unit) {
+                    val receiver = object : BroadcastReceiver() {
+                        override fun onReceive(ctx: Context?, intent: Intent?) {
+                            updateVm.onDownloadComplete(
+                                intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1,
+                            )
+                        }
+                    }
+                    val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.registerReceiver(receiver, filter)
+                    }
+                    onDispose { context.unregisterReceiver(receiver) }
+                }
                 DashboardScreen(
                     state = dashboardState,
+                    update = updateState,
                     onBoost = { navController.navigate(Routes.OPTIMIZATION) },
                     onOpenFps = { navController.navigate(Routes.FPS) },
                     onOpenGraphics = { navController.navigate(Routes.GRAPHICS) },
                     onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
                     onOpenShizuku = { navController.navigate(Routes.SHIZUKU) },
+                    onSelectVariant = { vm.selectVariant(it) },
+                    onDownloadUpdate = { updateVm.download() },
+                    onInstallUpdate = { updateVm.install() },
+                    onOpenRelease = { updateVm.openReleasePage() },
                     onRefresh = { vm.refresh() },
                 )
             }
@@ -177,11 +213,22 @@ fun KuBoosterRoot(container: AppContainer) {
                 LaunchedEffect(Unit) { vm.refreshCount() }
                 val settingsState by vm.state.collectAsState()
                 val pending by vm.pendingRestoreCount.collectAsState()
+                val updateVm: UpdateViewModel = viewModel(factory = UpdateViewModel.factory(container, autoCheckOnLaunch = false))
+                val updateState by updateVm.state.collectAsState()
+                val updateAutoCheck by container.userPreferences.updateCheckOnLaunch.collectAsState(initial = true)
+                val scope = rememberCoroutineScope()
                 SettingsScreen(
                     state = settingsState,
                     onSetThemeFollowSystem = { vm.setThemeFollowSystem(it) },
                     onClearPreferences = { vm.clearPreferences() },
                     pendingCount = pending,
+                    updateCurrentVersion = updateState.currentVersion,
+                    updateMessage = updateState.message,
+                    updateAutoCheck = updateAutoCheck,
+                    onCheckUpdates = { updateVm.checkNow(silent = false) },
+                    onSetUpdateAutoCheck = {
+                        scope.launch { container.userPreferences.setUpdateCheckOnLaunch(it) }
+                    },
                 )
             }
         }

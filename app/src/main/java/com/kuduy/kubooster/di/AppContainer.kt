@@ -18,6 +18,7 @@ import com.kuduy.kubooster.data.preferences.UserPreferencesRepository
 import com.kuduy.kubooster.data.restoration.SettingsRestorer
 import com.kuduy.kubooster.data.restoration.RestorationRepositoryImpl
 import com.kuduy.kubooster.data.shizuku.ShizukuRepositoryImpl
+import com.kuduy.kubooster.data.update.GithubUpdateChecker
 import com.kuduy.kubooster.system.DisplayCapabilitiesProvider
 import com.kuduy.kubooster.system.SettingsRestorerImpl
 import com.kuduy.kubooster.system.SystemSettingsManager
@@ -27,7 +28,7 @@ import kotlinx.coroutines.withContext
  * Explicit, hand-written dependency graph. Small enough that a DI framework
  * would add indirection without adding clarity.
  */
-class AppContainer(private val appContext: Context) {
+class AppContainer(val appContext: Context) {
 
     val dispatchers = AppDispatchers()
 
@@ -79,6 +80,8 @@ class AppContainer(private val appContext: Context) {
     )
 
     val shizukuRepository = ShizukuRepositoryImpl(appContext)
+
+    val updateChecker = GithubUpdateChecker(dispatchers)
 
     /** EglInfo warms the EGL query off the main thread during onboarding detection. */
     suspend fun warmGpuInfo() {

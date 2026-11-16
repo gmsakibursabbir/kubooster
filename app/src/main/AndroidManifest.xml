@@ -5,6 +5,15 @@
     <!-- KuBooster reads only public device/display/battery state; no location,
          camera, microphone, contacts, SMS or telephony permissions are requested. -->
 
+    <!-- Used EXCLUSIVELY to check GitHub Releases for newer versions of this app
+         (api.github.com) and to download the signed APK from github.com when the
+         user explicitly taps "Download update". No analytics or telemetry exist. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Needed so the downloaded GitHub release APK can be handed to the system
+         installer. The user confirms every installation. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Reversible, user-confirmed changes to system settings the user opts into
          (e.g. screen brightness). Granted through the system
          ACTION_MANAGE_WRITE_SETTINGS screen, never silently. -->
@@ -50,5 +59,16 @@
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <!-- Shares downloaded release APKs with the system installer only. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

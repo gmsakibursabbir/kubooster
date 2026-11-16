@@ -8,12 +8,12 @@
 
 *A lightweight, honest Android gaming performance companion for PUBG Mobile — by KUDUY*
 
-[![Release](https://img.shields.io/badge/release-v1.0.2-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.3-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Target](https://img.shields.io/badge/target-Android%2014-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Size](https://img.shields.io/badge/APK-~2%20MB-0163FA?style=flat-square)](https://github.com/gmsakibursabbir/kubooster/releases)
 [![No Ads](https://img.shields.io/badge/ads-none-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
-[![Offline](https://img.shields.io/badge/network-none-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
+[![Network](https://img.shields.io/badge/network-github.com%20only-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
 [![Game mods](https://img.shields.io/badge/game%20files-never%20touched-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
 
 </div>
@@ -42,6 +42,8 @@ It is built on one non-negotiable principle: **it never shows you a number it ca
 | ↩️ | **One-tap Restore** | Every change is journaled with its *original* value. Restore one change or all — always back to exactly what was there before. |
 | 🎨 | **Graphics Presets** | Smooth Performance / Balanced / High Quality, tailored to your RAM tier and thermal state — applied by you inside PUBG's own settings menu. |
 | ⚡ | **Shizuku (optional)** | Grants `WRITE_SECURE_SETTINGS` for battery-saver & animation controls via two compile-time-fixed commands. Every core feature works without it. |
+| 🎯 | **Game variant pinning** | Choose which PUBG Mobile flavor (Global / Flash / KR / VN / BGMI) the app targets, or leave it on Auto-detect. FPS & graphics guidance follow your pick. |
+| 🔄 | **In-app updates** | Checks the official GitHub Releases for newer versions (toggle in Settings) and downloads the signed APK from `github.com` only. No analytics, no other servers. |
 
 ## 📲 Installation
 
@@ -153,6 +155,9 @@ Yes. The system-settings changes KuBooster makes (refresh-rate preference, anima
 
 **Is root or ADB required?**
 No. Core features work with plain permissions. Shizuku (optional, no root needed) only unlocks two extra settings controls.
+
+**How do in-app updates work?**
+On launch (toggleable in Settings → Updates) the app compares its version with the latest GitHub release. Updates are downloaded through the system DownloadManager from `github.com` only and installed by Android's package installer — you confirm every step. The app never sideloads anything silently.
 
 **Why do some Boost items show "Unavailable"?**
 Honesty. E.g. many OEM skins don't expose the standard refresh-rate key — the app tells you that instead of pretending.

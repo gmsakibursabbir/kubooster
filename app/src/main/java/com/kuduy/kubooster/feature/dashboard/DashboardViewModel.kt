@@ -17,6 +17,7 @@ import com.kuduy.kubooster.domain.model.RamTier
 import com.kuduy.kubooster.domain.model.ThermalStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -27,6 +28,10 @@ data class DashboardState(
     val compatibility: CompatibilityReport? = null,
     /** Recommended profile computed by the FPS engine from real data. */
     val recommendedFps: FpsProfile? = null,
+    /** All variants with live install state, for the selector. */
+    val variants: List<GameMetadata> = emptyList(),
+    /** User-pinned variant name, or null for auto-detect. */
+    val selectedVariantName: String? = null,
     val shizukuInstalled: Boolean = false,
     val shizukuRunning: Boolean = false,
     val shizukuAuthorized: Boolean = false,
@@ -98,7 +103,17 @@ class DashboardViewModel(
             _state.value = _state.value.copy(loading = true, errorMessage = null)
             try {
                 val device = container.deviceRepository.getDeviceCapabilities()
-                val game = container.gameDetectionRepository.detectInstalledGame()
+                val variants = container.gameDetectionRepository.detectAllVariants()
+                val pinnedName = container.userPreferences.selectedGameVariant.firstOrNull()
+                val pinned = variants.firstOrNull { it.variant.name == pinnedName }
+                // Pinned variant wins only when it is actually installed; otherwise
+                // fall back to auto-detect so the UI never shows a ghost game.
+                val game = if (pinned != null && pinned.state != DetectionState.NOT_INSTALLED) {
+                    pinned
+                } else {
+                    variants.firstOrNull { it.state == DetectionState.INSTALLED }
+                        ?: variants.first()
+                }
                 val compatibility = container.compatibilityRepository.buildReport(device, device.display)
                 // The FPS engine's top recommendation for this display, using only
                 // manifest-verified or display-supported states.
@@ -122,6 +137,8 @@ class DashboardViewModel(
                     game = game,
                     compatibility = compatibility,
                     recommendedFps = recommended,
+                    variants = variants,
+                    selectedVariantName = pinnedName,
                     shizukuInstalled = container.shizukuRepository.isInstalled(),
                     shizukuRunning = container.shizukuRepository.isServiceAvailable(),
                     shizukuAuthorized = container.shizukuRepository.hasPermission(),
@@ -132,6 +149,14 @@ class DashboardViewModel(
                     errorMessage = "Device information could not be read (${e.javaClass.simpleName}). Close and reopen the app to retry.",
                 )
             }
+        }
+    }
+
+    /** Persists the pinned variant (null = auto-detect) and re-runs detection. */
+    fun selectVariant(name: String?) {
+        viewModelScope.launch {
+            container.userPreferences.setSelectedVariant(name)
+            refresh()
         }
     }
 

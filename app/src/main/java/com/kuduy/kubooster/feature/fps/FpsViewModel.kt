@@ -16,6 +16,7 @@ import com.kuduy.kubooster.domain.model.GameVariant
 import com.kuduy.kubooster.domain.model.VerificationStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 data class FpsScreenState(
@@ -47,7 +48,19 @@ class FpsViewModel(
             _state.value = _state.value.copy(loading = true, error = null)
             try {
                 val device: DeviceCapabilities = container.deviceRepository.getDeviceCapabilities()
-                val game = container.gameDetectionRepository.detectInstalledGame()
+                // Honor the user-pinned variant; fall back to auto-detect when the
+                // pinned game is not installed.
+                val pinnedName = container.userPreferences.selectedGameVariant.firstOrNull()
+                val pinnedMeta = pinnedName?.let { name ->
+                    GameVariant.entries.firstOrNull { it.name == name }?.let {
+                        container.gameDetectionRepository.detectVariant(it)
+                    }
+                }
+                val game = if (pinnedMeta != null && pinnedMeta.state != DetectionState.NOT_INSTALLED) {
+                    pinnedMeta
+                } else {
+                    container.gameDetectionRepository.detectInstalledGame()
+                }
                 val manifest: CompatibilityManifest = container.compatibilityRepository.loadManifest()
                 val variant = if (game.state == DetectionState.INSTALLED) game.variant else GameVariant.GLOBAL
                 val target = manifest.entries.firstOrNull {

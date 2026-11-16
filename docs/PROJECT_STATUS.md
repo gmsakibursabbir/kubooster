@@ -1,6 +1,16 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.0.2 (new launcher icon + v1.0.1 bug fixes)**
+Last updated: 2026-11-16 · Build: **v1.0.3 (game variant selector + in-app updates)**
+
+## v1.0.3 changes
+
+1. **Game variant selector** — the dashboard now offers Auto-detect plus explicit pins for PUBG Mobile Global / Flash / KR / VN / BGMI. The pinned choice (stored in `selected_game_variant` preference) drives FPS and graphics guidance; when the pinned game is not installed the app falls back to auto-detection rather than inventing data.
+2. **In-app updates from GitHub** — `GithubUpdateChecker` queries `api.github.com` for the latest release of `gmsakibursabbir/kubooster`; when newer than the installed version a dashboard banner offers to download the signed APK via the system DownloadManager (from `github.com` only) and hand it to the Android package installer. Auto-check on launch is toggleable in Settings → Updates. New permissions: `INTERNET` and `REQUEST_INSTALL_PACKAGES` (both commented honestly in the manifest). FileProvider added for installer hand-off.
+3. **Network honesty updated** — `docs/SECURITY.md` and README now document the single update-check use of the network; no analytics or other endpoints exist.
+
+## v1.0.2 changes
+
+- New launcher icon (adaptive + all densities) built from the KUDUY helmet logo.
 
 ## v1.0.1 bug fixes
 
@@ -54,8 +64,7 @@ Last updated: 2026-11-16 · Build: **v1.0.2 (new launcher icon + v1.0.1 bug fixe
 
 | Artifact | Status |
 |---|---|
-| `app/build/outputs/apk/debug/app-debug.apk` | Built — v1.0.1 |
-| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **1.65 MB**; `apksigner verify` passes |
+| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **2.01 MB** (v1.0.3); `apksigner verify` passes |
 
 Signing: keystore password mismatch in `keystore.properties` was the only release-build blocker; corrected against the keystore note copy kept outside the repository (`J:\devtools\kubooster-keystore-note.txt`).
 

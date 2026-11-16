@@ -1,5 +1,6 @@
 package com.kuduy.kubooster.feature.dashboard
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,11 +17,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -31,7 +38,10 @@ import com.kuduy.kubooster.core.designsystem.SectionTitle
 import com.kuduy.kubooster.core.designsystem.StatusChip
 import com.kuduy.kubooster.domain.model.CompatibilityConfidence
 import com.kuduy.kubooster.domain.model.DetectionState
+import com.kuduy.kubooster.domain.model.GameVariant
 import com.kuduy.kubooster.domain.model.ThermalStatus
+import com.kuduy.kubooster.feature.update.UpdateStatus
+import com.kuduy.kubooster.feature.update.UpdateUiState
 
 /**
  * Home dashboard. Layout notes:
@@ -42,11 +52,16 @@ import com.kuduy.kubooster.domain.model.ThermalStatus
 @Composable
 fun DashboardScreen(
     state: DashboardState,
+    update: UpdateUiState,
     onBoost: () -> Unit,
     onOpenFps: () -> Unit,
     onOpenGraphics: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenShizuku: () -> Unit,
+    onSelectVariant: (String?) -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onOpenRelease: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     Column(
@@ -84,6 +99,40 @@ fun DashboardScreen(
 
         Spacer(Modifier.height(12.dp))
 
+        // Game variant selector: user can pin PUBG Mobile Global, Flash, etc.
+        val selectable = state.variants.filter {
+            it.state == DetectionState.INSTALLED || it.state == DetectionState.VERSION_UNREADABLE
+        }
+        if (selectable.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                FilterChip(
+                    selected = state.selectedVariantName == null,
+                    onClick = { onSelectVariant(null) },
+                    label = { Text("Auto") },
+                )
+                selectable.forEach { meta ->
+                    FilterChip(
+                        selected = state.selectedVariantName == meta.variant.name,
+                        onClick = { onSelectVariant(meta.variant.name) },
+                        label = {
+                            Text(
+                                variantShortLabel(meta.variant) + when (meta.state) {
+                                    DetectionState.VERSION_UNREADABLE -> " ?"
+                                    else -> ""
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
         when {
             state.errorMessage != null -> {
                 KubeCard {
@@ -107,6 +156,13 @@ fun DashboardScreen(
             }
             else -> HeroDeviceCard(state)
         }
+
+        UpdateBanner(
+            update = update,
+            onDownload = onDownloadUpdate,
+            onInstall = onInstallUpdate,
+            onOpenRelease = onOpenRelease,
+        )
 
         Spacer(Modifier.height(16.dp))
 
@@ -243,4 +299,92 @@ private fun CompatibilityConfidence.label(): String = when (this) {
     CompatibilityConfidence.MEDIUM -> "Medium"
     CompatibilityConfidence.LOW -> "Low"
     CompatibilityConfidence.NONE -> "None yet"
+}
+
+private fun variantShortLabel(variant: GameVariant): String = when (variant) {
+    GameVariant.GLOBAL -> "Global"
+    GameVariant.FLASH -> "Flash"
+    GameVariant.KR -> "KR"
+    GameVariant.VN -> "VN"
+    GameVariant.BGMI -> "BGMI"
+}
+
+/**
+ * In-app update banner. Shown only when a newer signed release exists on the
+ * official GitHub repository. Downloads come from github.com only.
+ */
+@Composable
+private fun UpdateBanner(
+    update: UpdateUiState,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onOpenRelease: () -> Unit,
+) {
+    var dismissed by remember { mutableStateOf(false) }
+    if (dismissed) return
+    when (update.status) {
+        UpdateStatus.AVAILABLE -> {
+            val latest = update.latest
+            KubeCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Update available${latest?.tagName?.let { ": $it" } ?: ""}",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "Installed: v${update.currentVersion}" +
+                                (latest?.apkSize?.takeIf { it > 0 }
+                                    ?.let { " · ${"%.1f".format(it / (1024.0 * 1024.0))} MB" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    TextButton(onClick = { dismissed = true }) { Text("Hide") }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (latest?.apkUrl != null) {
+                        Button(onClick = onDownload) { Text("Download update") }
+                    }
+                    OutlinedButton(onClick = onOpenRelease) { Text("View release") }
+                }
+                Text(
+                    "Checked against the official GitHub repository. Nothing else is contacted.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        UpdateStatus.DOWNLOADING -> {
+            KubeCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Downloading update from GitHub…",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        UpdateStatus.DOWNLOADED -> {
+            KubeCard(Modifier.fillMaxWidth()) {
+                Text("Update downloaded", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Downloaded from official GitHub. Android will ask you to confirm the installation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+                )
+                Button(onClick = onInstall) { Text("Install update") }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        else -> Unit
+    }
 }

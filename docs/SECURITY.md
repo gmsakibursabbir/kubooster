@@ -37,11 +37,12 @@ There is no code path that forwards user input to a shell command. Each executio
 
 ## Data and network
 
-- No `INTERNET` permission. Core features are fully offline.
-- No analytics, ads, or telemetry SDKs. Nothing is uploaded.
+- Core features are fully offline. The single `INTERNET` use is the in-app update check: `api.github.com` (latest release metadata for `gmsakibursabbir/kubooster`) and `github.com` (the signed APK asset, only after the user taps *Download update*).
+- Update checks on launch are optional and can be turned off in Settings → Updates.
+- No analytics, ads, or telemetry SDKs. Nothing is uploaded; no other hosts are ever contacted.
 - Package visibility is restricted to five PUBG package names via `<queries>`.
 - No PUBG account data or player IDs are read or stored.
-- Local storage: DataStore preferences (custom profile, onboarding flag) and the restoration journal (operation records only, no secrets).
+- Local storage: DataStore preferences (custom profile, onboarding flag, pinned game variant, update-check toggle) and the restoration journal (operation records only, no secrets).
 
 ## Honest reporting
 

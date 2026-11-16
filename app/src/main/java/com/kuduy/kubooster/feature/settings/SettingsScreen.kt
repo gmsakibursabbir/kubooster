@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +33,11 @@ fun SettingsScreen(
     onSetThemeFollowSystem: (Boolean) -> Unit,
     onClearPreferences: () -> Unit,
     pendingCount: Int,
+    updateCurrentVersion: String,
+    updateMessage: String?,
+    updateAutoCheck: Boolean,
+    onCheckUpdates: () -> Unit,
+    onSetUpdateAutoCheck: (Boolean) -> Unit,
 ) {
     var showClearDialog by remember { mutableStateOf(false) }
     var showPrivacy by remember { mutableStateOf(false) }
@@ -63,6 +69,44 @@ fun SettingsScreen(
                 Switch(
                     checked = state.themeFollowSystem,
                     onCheckedChange = onSetThemeFollowSystem,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("Updates")
+        KubeCard(Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("Installed version", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "KuBooster v$updateCurrentVersion — updates come only from the official GitHub repository.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(onClick = onCheckUpdates) { Text("Check now") }
+            }
+            updateMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Check automatically on launch", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Silently compares your version with the latest GitHub release. Nothing else is contacted.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = updateAutoCheck,
+                    onCheckedChange = onSetUpdateAutoCheck,
                 )
             }
         }

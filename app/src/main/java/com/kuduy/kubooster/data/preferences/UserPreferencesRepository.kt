@@ -29,6 +29,8 @@ class UserPreferencesRepository(private val context: Context) {
         val prioritizeThermal = booleanPreferencesKey("custom_thermal_priority")
         val selectedPreset = stringPreferencesKey("selected_preset")
         val themeFollowSystem = booleanPreferencesKey("theme_follow_system")
+        val selectedVariant = stringPreferencesKey("selected_game_variant")
+        val updateCheckOnLaunch = booleanPreferencesKey("update_check_on_launch")
     }
 
     val onboardingComplete: Flow<Boolean> = context.userPreferencesDataStore.data.map { it[Keys.onboarded] ?: false }
@@ -63,6 +65,24 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun setThemeFollowSystem(value: Boolean) {
         context.userPreferencesDataStore.edit { it[Keys.themeFollowSystem] = value }
+    }
+
+    /** User-pinned game variant (GameVariant.name), or null for auto-detect. */
+    val selectedGameVariant: Flow<String?> = context.userPreferencesDataStore.data.map { it[Keys.selectedVariant] }
+
+    suspend fun setSelectedVariant(name: String?) {
+        context.userPreferencesDataStore.edit {
+            if (name == null) it.remove(Keys.selectedVariant) else it[Keys.selectedVariant] = name
+        }
+    }
+
+    /** Whether the app silently checks GitHub for a newer release on launch. */
+    val updateCheckOnLaunch: Flow<Boolean> = context.userPreferencesDataStore.data.map {
+        it[Keys.updateCheckOnLaunch] ?: true
+    }
+
+    suspend fun setUpdateCheckOnLaunch(value: Boolean) {
+        context.userPreferencesDataStore.edit { it[Keys.updateCheckOnLaunch] = value }
     }
 
     /** Clears every preference this app wrote. Called from Settings. */

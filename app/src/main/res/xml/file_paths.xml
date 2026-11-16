@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Downloaded GitHub release APKs (system DownloadManager destination). -->
+    <external-files-path
+        name="updates"
+        path="Download/" />
+</paths>
