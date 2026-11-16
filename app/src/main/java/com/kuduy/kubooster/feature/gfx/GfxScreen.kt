@@ -192,7 +192,7 @@ fun GfxScreen(
 
                             SettingCard(Icons.Filled.HighQuality, "Graphics Quality") {
                                 TileGrid(
-                                    options = PRESETS.map { it to presetLabelOf(it) },
+                                    options = (if (state.selectedPackage == GameVariant.FLASH.packageName) listOf("flashexclusive") + PRESETS else PRESETS).map { it to presetLabelOf(it) },
                                     selected = state.presetKey,
                                     onSelect = onSelectPreset,
                                 )
@@ -208,7 +208,7 @@ fun GfxScreen(
                                 val isFlash = state.selectedPackage == GameVariant.FLASH.packageName
                                 when {
                                     fps != null && fps > 60 && isFlash -> Warning(
-                                        "PUBG Flash limits the frame rate itself on many phones. If the in-game FPS meter stays at 60, use 60 — forcing more only adds lag.",
+                                        if (state.presetKey == "flashexclusive") "For 90 on Flash, keep Flash Exclusive — Flash's lightest mode. If the in-game FPS meter still stays at 60, Flash caps your phone at 60: use 60, forcing more only adds lag." else "Flash may cap the frame rate at 60 on your phone. For 90, pick Flash Exclusive.",
                                     )
                                     fps != null && fps > 60 && state.panelHz.isNotEmpty() &&
                                         !RefreshRatePicker.isSmooth(fps, state.panelHz) -> Warning(
@@ -896,6 +896,7 @@ private fun presetLabelOf(key: String?): String = when (key) {
     "hd" -> "HD"
     "hdr" -> "HDR"
     "ultrahdr" -> "Ultra HD"
+    "flashexclusive" -> "Flash Exclusive"
     else -> key
 }
 

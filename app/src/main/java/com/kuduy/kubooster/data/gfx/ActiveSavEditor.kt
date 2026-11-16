@@ -96,7 +96,7 @@ object ActiveSavEditor {
      * unlock.
      */
     fun qualityLevel(presetKey: String): Int? = when (presetKey) {
-        "supersmooth" -> 1
+        "flashexclusive", "supersmooth" -> 1
         "smooth" -> 2
         "balanced" -> 3
         "hd" -> 4
@@ -120,6 +120,43 @@ object ActiveSavEditor {
     fun applyQualityLevel(bytes: ByteArray, level: Int): ByteArray? {
         require(level in 1..7) { "quality level out of range: $level" }
         return applyLevel(bytes, level, ::isQualityProperty)
+    }
+
+    // ---- BoolProperty --------------------------------------------------
+    //
+    // GVAS BoolProperty layout (the value lives in the tag, not the body):
+    //   int32 nameLen | name\0 | int32 13 | "BoolProperty\0" | int32 size 0 |
+    //   int32 arrayIndex 0 | byte value | byte 0 (no GUID)
+
+    /** PUBG Flash's "FLASH Exclusive" graphics switch (seen only in Flash saves). */
+    const val FLASH_ONLY_QUALITY = "bFlashOnlyQuality"
+
+    private val BOOL_TAG = "BoolProperty\u0000".toByteArray(Charsets.ISO_8859_1)
+
+    data class BoolProp(val name: String, val valueOffset: Int, val value: Boolean)
+
+    fun readBoolProperties(bytes: ByteArray): List<BoolProp> {
+        val out = mutableListOf<BoolProp>()
+        var i = indexOf(bytes, BOOL_TAG, 0)
+        while (i >= 0) {
+            val name = nameBefore(bytes, i, BOOL_TAG.size)
+            val sizeAt = i + BOOL_TAG.size
+            val valueAt = sizeAt + 8
+            if (name != null && valueAt + 1 < bytes.size &&
+                readInt32(bytes, sizeAt) == 0 && readInt32(bytes, sizeAt + 4) == 0 &&
+                bytes[valueAt + 1].toInt() == 0 && bytes[valueAt].toInt() in 0..1
+            ) {
+                out += BoolProp(name, valueAt, bytes[valueAt].toInt() == 1)
+            }
+            i = indexOf(bytes, BOOL_TAG, i + BOOL_TAG.size)
+        }
+        return out
+    }
+
+    /** Sets an existing bool property; null when the save has no such property. */
+    fun setBool(bytes: ByteArray, name: String, value: Boolean): ByteArray? {
+        val prop = readBoolProperties(bytes).firstOrNull { it.name == name } ?: return null
+        return bytes.copyOf().also { it[prop.valueOffset] = if (value) 1 else 0 }
     }
 
     /** The frame-rate and graphics values GFX manages (what Remove restores). */
@@ -172,18 +209,25 @@ object ActiveSavEditor {
         }.distinct().take(60)
     }
 
-    /** Parses one IntProperty whose type tag starts at [tagAt]. */
-    private fun parseAt(b: ByteArray, tagAt: Int): IntProp? {
-        // Type-name length (12) sits right before the tag.
-        if (tagAt < 4 || readInt32(b, tagAt - 4) != TYPE_TAG.size) return null
-        // Walk back over the property name: "...nameLen | name\0 | 12 | tag".
+    /**
+     * The property name stored before a type tag at [tagAt] ("...nameLen |
+     * name\0 | typeLen | type\0"), or null if the bytes don't fit that shape.
+     */
+    private fun nameBefore(b: ByteArray, tagAt: Int, tagSize: Int): String? {
+        // Type-name length sits right before the tag.
+        if (tagAt < 4 || readInt32(b, tagAt - 4) != tagSize) return null
         val nameEnd = tagAt - 4 // index just past the name's NUL
         if (nameEnd < 1 || b[nameEnd - 1].toInt() != 0) return null
         var nameStart = nameEnd - 1
         while (nameStart > 0 && b[nameStart - 1] in 0x20..0x7E) nameStart--
         val nameLen = nameEnd - nameStart
         if (nameLen < 2 || nameStart < 4 || readInt32(b, nameStart - 4) != nameLen) return null
-        val name = String(b, nameStart, nameLen - 1, Charsets.ISO_8859_1)
+        return String(b, nameStart, nameLen - 1, Charsets.ISO_8859_1)
+    }
+
+    /** Parses one IntProperty whose type tag starts at [tagAt]. */
+    private fun parseAt(b: ByteArray, tagAt: Int): IntProp? {
+        val name = nameBefore(b, tagAt, TYPE_TAG.size) ?: return null
         // After the tag: int64 size == 4, one GUID flag byte == 0, then the value.
         val sizeAt = tagAt + TYPE_TAG.size
         val valueAt = sizeAt + 8 + 1

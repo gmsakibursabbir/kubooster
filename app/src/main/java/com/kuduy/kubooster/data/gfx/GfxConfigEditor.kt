@@ -38,7 +38,11 @@ object GfxConfigEditor {
     )
 
     /** Graphics presets, in the order offered in the UI. */
-    val GRAPHICS_PRESETS: Map<String, Map<String, String>> = mapOf(
+    val GRAPHICS_PRESETS: Map<String, Map<String, String>> = basePresets().let { it + ("flashexclusive" to it.getValue("supersmooth")) }
+
+    // "flashexclusive" (PUBG Flash only) uses the Super Smooth CVars; the
+    // difference is the bFlashOnlyQuality switch in Active.sav.
+    private fun basePresets(): Map<String, Map<String, String>> = mapOf(
         // Lightest tuning, styled after PUBG Flash's exclusive "Super Smooth"
         // tier: everything optional off, minimal streaming/shadows, lowest
         // readable resolution scale. For the weakest devices and highest FPS.

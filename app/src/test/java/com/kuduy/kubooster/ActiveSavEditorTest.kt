@@ -82,6 +82,31 @@ class ActiveSavEditorTest {
         assertEquals(mapOf("BattleFPS" to 7, "BattleRenderQuality" to 1, "Sensitivity" to 80), after)
     }
 
+    /** GVAS BoolProperty: value byte lives in the tag, then the GUID flag. */
+    private fun ByteArrayOutputStream.boolProp(name: String, value: Boolean) {
+        fstring(name); fstring("BoolProperty"); int32(0); int32(0); write(if (value) 1 else 0); write(0)
+    }
+
+    @Test
+    fun `reads and sets the Flash exclusive bool, ints untouched`() {
+        val b = ByteArrayOutputStream().apply {
+            write("GVAS".toByteArray()); int32(2); int32(517)
+            intProp("BattleFPS", 6)
+            boolProp(ActiveSavEditor.FLASH_ONLY_QUALITY, false)
+            intProp("BattleRenderQuality", 1)
+            fstring("None"); int32(0)
+        }.toByteArray()
+        assertEquals(false, ActiveSavEditor.readBoolProperties(b).single().value)
+        val on = ActiveSavEditor.setBool(b, ActiveSavEditor.FLASH_ONLY_QUALITY, true)!!
+        assertEquals(b.size, on.size)
+        assertEquals(true, ActiveSavEditor.readBoolProperties(on).single { it.name == ActiveSavEditor.FLASH_ONLY_QUALITY }.value)
+        assertEquals(
+            mapOf("BattleFPS" to 6, "BattleRenderQuality" to 1),
+            ActiveSavEditor.readIntProperties(on).associate { it.name to it.value },
+        )
+        assertNull(ActiveSavEditor.setBool(sav("BattleFPS" to 6), ActiveSavEditor.FLASH_ONLY_QUALITY, true))
+    }
+
     @Test
     fun `fps to game level`() {
         assertEquals(4, ActiveSavEditor.fpsLevel(30))

@@ -131,7 +131,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                     targets = installed,
                     panelHz = RefreshRatePicker.normalize(engine.supportedRefreshRates()),
                     selectedPackage = preferred?.variant?.packageName,
-                    fpsTarget = if (preferred?.variant == GameVariant.FLASH) minOf(it.fpsTarget ?: 60, 60) else it.fpsTarget,
+                    presetKey = presetFor(preferred?.variant?.packageName, it.presetKey),
                     busy = false,
                     hasBackup = preferred?.let { t -> hasAnyBackup(t.variant.packageName) } ?: false,
                 )
@@ -145,9 +145,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             it.copy(
                 selectedPackage = packageName,
                 hasBackup = hasAnyBackup(packageName),
-                // PUBG Flash caps the frame rate itself on many phones; forcing
-                // more only adds lag. Start at 60 there — the user can still pick higher.
-                fpsTarget = if (packageName == GameVariant.FLASH.packageName) minOf(it.fpsTarget ?: 60, 60) else it.fpsTarget,
+                presetKey = presetFor(packageName, it.presetKey),
             )
         }
         loadFile()
@@ -384,6 +382,18 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 GfxLog.log("Active.sav: no graphics-quality property found, graphics level not written")
             }
         }
+        // PUBG Flash's "FLASH Exclusive" switch: on for that preset, off for
+        // any other preset (only when the save has it — Flash saves only).
+        if (presetKey != null) {
+            val want = presetKey == "flashexclusive"
+            val withFlag = ActiveSavEditor.setBool(edited!!, ActiveSavEditor.FLASH_ONLY_QUALITY, want)
+            if (withFlag != null) {
+                edited = withFlag
+                GfxLog.log("Active.sav: ${ActiveSavEditor.FLASH_ONLY_QUALITY} -> $want")
+            } else if (want) {
+                GfxLog.log("Active.sav: no ${ActiveSavEditor.FLASH_ONLY_QUALITY} switch — Flash Exclusive applies only to PUBG Flash")
+            }
+        }
         if (!engine.saveBackupExists(pkg)) engine.storeSaveBackup(pkg, sav)
         if (!engine.saveBackupExists(pkg)) {
             GfxLog.log("Active.sav backup could not be stored — not writing")
@@ -411,6 +421,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             .filter { ActiveSavEditor.isFpsProperty(it.name) || ActiveSavEditor.isQualityProperty(it.name) }
             .joinToString { "${it.name}=${it.value}" }.ifEmpty { "none" })
         GfxLog.log("Active.sav related names: " + ActiveSavEditor.describeRelevantStrings(sav).joinToString(" | ").ifEmpty { "none" })
+        ActiveSavEditor.readBoolProperties(sav).firstOrNull { it.name == ActiveSavEditor.FLASH_ONLY_QUALITY }
+            ?.let { GfxLog.log("Active.sav ${it.name}=${it.value}") }
     }
 
     /**
@@ -563,7 +575,13 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         // What the game left after playing: shows whether it kept or reset the unlock.
         GfxLog.log("Active.sav before restore (as the game left it): ${ActiveSavEditor.managedValues(current)}")
         GfxLog.log("restoring Active.sav values: $original")
-        return engine.writeSaveVerified(pkg, ActiveSavEditor.setValues(current, original))
+        var restored = ActiveSavEditor.setValues(current, original)
+        // Put the Flash Exclusive switch back too.
+        ActiveSavEditor.readBoolProperties(backup).firstOrNull { it.name == ActiveSavEditor.FLASH_ONLY_QUALITY }?.let { orig ->
+            ActiveSavEditor.setBool(restored, orig.name, orig.value)?.let { restored = it }
+            GfxLog.log("restoring ${orig.name}=${orig.value}")
+        }
+        return engine.writeSaveVerified(pkg, restored)
     }
 
     /** "Super Smooth · Extreme+ (90)" for the game-settings backup, or null. */
@@ -606,6 +624,17 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         return closed
     }
 
+    /**
+     * PUBG Flash starts on Flash Exclusive — its own lightest mode, where it
+     * may allow Extreme+ (90). Flash Exclusive doesn't exist in other games,
+     * so switching away falls back to Super Smooth.
+     */
+    private fun presetFor(pkg: String?, current: String?): String? = when {
+        pkg == GameVariant.FLASH.packageName && (current == null || current == "supersmooth") -> "flashexclusive"
+        pkg != GameVariant.FLASH.packageName && current == "flashexclusive" -> "supersmooth"
+        else -> current
+    }
+
     private fun hasAnyBackup(pkg: String) = engine.backupExists(pkg) || engine.saveBackupExists(pkg)
 
     fun clearMessage() = _state.update { it.copy(message = null) }
@@ -618,6 +647,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         "hd" -> "HD"
         "hdr" -> "HDR"
         "ultrahdr" -> "Ultra HDR"
+        "flashexclusive" -> "Flash Exclusive"
         else -> key
     }
 

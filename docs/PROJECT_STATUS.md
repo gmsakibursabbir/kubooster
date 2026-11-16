@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.11 (refresh rate matched to FPS, stutter + Flash warnings)**
+Last updated: 2026-11-16 · Build: **v1.1.12 (Flash Exclusive mode for 90 FPS on PUBG Flash)**
+
+## v1.1.12 changes
+
+1. **GVAS BoolProperty support** in `ActiveSavEditor` (read + in-place set; value byte lives in the tag). Unit-tested.
+2. **"Flash Exclusive" preset (PUBG Flash only)** — Super Smooth CVars + quality level 1 + `bFlashOnlyQuality=true`; other presets set it false. Preselected for Flash; the 60 FPS default for Flash is removed.
+3. Restore puts `bFlashOnlyQuality` back; the log shows its value on load/apply/restore.
+4. Unverified: that `bFlashOnlyQuality` is exactly what Flash's own "FLASH Exclusive" option writes — confirm from a log taken after selecting it in-game.
 
 ## v1.1.11 changes
 
