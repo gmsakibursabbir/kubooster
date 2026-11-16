@@ -1,6 +1,15 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.6 (corrected Active.sav quality levels — fixes FPS clamped to 40-60)**
+Last updated: 2026-11-16 · Build: **v1.1.7 (refresh-rate lock above 60 FPS, safe value-only restore, simpler screen)**
+
+## v1.1.7 changes
+
+1. **Refresh-rate lock above 60 FPS** — when applying 90/120 FPS, KuBooster locks the panel's peak and minimum refresh rate to the maximum via Shizuku, so the game can't hold the screen at 60 Hz while rendering 90 (stutter on PUBG Flash). Original values are saved and restored on Remove GFX, or automatically when applying 60 FPS or less.
+2. **Safe restore** — restoring now writes only the frame-rate and graphics values back into the *current* Active.sav instead of overwriting the whole file, so game settings changed since the backup are kept. The card shows exactly what restore will put back, with a "Discard backup" option for a bad backup.
+3. **UserCustom.ini rebuilt from the pristine backup** — applies build on top of the untouched original, so keys from earlier applies can't linger.
+4. **`r.Streaming.PoolSize` dropped from all presets** — the small texture pool caused hitching.
+5. **Simpler GFX screen** — resolution row, 30 FPS, Default graphics option, preset descriptions and extra hints removed; status and restore merged into one card; defaults are Super Smooth + 90.
+6. Test added for the value-only restore.
 
 ## v1.1.6 changes
 
