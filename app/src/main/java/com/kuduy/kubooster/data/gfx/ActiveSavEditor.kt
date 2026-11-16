@@ -1,0 +1,125 @@
+package com.kuduy.kubooster.data.gfx
+
+/**
+ * Edits PUBG Mobile's `Saved/SaveGames/Active.sav`, the UE4 GVAS save that
+ * holds the player's selected frame rate and graphics level. Current game
+ * versions take the frame rate from this file, not from `UserCustom.ini`, so
+ * an FPS unlock that only edits the .ini does nothing.
+ *
+ * Only existing `IntProperty` values are overwritten in place (same 4 bytes),
+ * so the file size and layout never change. No property is ever added.
+ *
+ * GVAS IntProperty layout (little-endian):
+ *   int32 nameLen | name\0 | int32 12 | "IntProperty\0" | int64 4 | byte 0 (no GUID) | int32 value
+ *
+ * Frame-rate levels (as the game names them):
+ *   2 Power Saving · 3 Medium · 4 High (30) · 5 Ultra (40) ·
+ *   6 Extreme (60) · 7 Extreme+ (90) · 8 Ultra Extreme (120)
+ * Property names and levels match the open-source MK-PUBG-Mobile-Tool.
+ */
+object ActiveSavEditor {
+
+    /** Properties known to hold the frame-rate level. */
+    val KNOWN_FPS_PROPERTIES = setOf("FPSLevel", "BattleFPS", "LobbyFPS")
+
+    private val TYPE_TAG = "IntProperty\u0000".toByteArray(Charsets.ISO_8859_1)
+
+    data class IntProp(val name: String, val valueOffset: Int, val value: Int)
+
+    fun fpsLevel(fps: Int): Int = when {
+        fps >= 120 -> 8
+        fps >= 90 -> 7
+        fps >= 60 -> 6
+        fps >= 40 -> 5
+        else -> 4
+    }
+
+    fun levelLabel(level: Int): String = when (level) {
+        2 -> "Power Saving"
+        3 -> "Medium"
+        4 -> "High (30)"
+        5 -> "Ultra (40)"
+        6 -> "Extreme (60)"
+        7 -> "Extreme+ (90)"
+        8 -> "Ultra Extreme (120)"
+        else -> "level $level"
+    }
+
+    /**
+     * Frame-rate properties: the known names, plus any other int property
+     * whose name ends in "FPS" or "FPSLevel" (newer versions split combat,
+     * lobby, hub and home settings).
+     */
+    fun isFpsProperty(name: String): Boolean =
+        name in KNOWN_FPS_PROPERTIES || name.endsWith("FPS") || name.endsWith("FPSLevel")
+
+    /** Every IntProperty found in [bytes]. Unparseable regions are skipped. */
+    fun readIntProperties(bytes: ByteArray): List<IntProp> {
+        val out = mutableListOf<IntProp>()
+        var i = indexOf(bytes, TYPE_TAG, 0)
+        while (i >= 0) {
+            parseAt(bytes, i)?.let { out += it }
+            i = indexOf(bytes, TYPE_TAG, i + TYPE_TAG.size)
+        }
+        return out
+    }
+
+    fun readFpsProperties(bytes: ByteArray): List<IntProp> =
+        readIntProperties(bytes).filter { isFpsProperty(it.name) }
+
+    /**
+     * Returns a copy of [bytes] with every frame-rate property set to [level],
+     * or null if the file has no recognisable frame-rate property (nothing to
+     * edit; the caller must not write).
+     */
+    fun applyFpsLevel(bytes: ByteArray, level: Int): ByteArray? {
+        require(level in 2..8) { "fps level out of range: $level" }
+        val props = readFpsProperties(bytes)
+        if (props.isEmpty()) return null
+        val copy = bytes.copyOf()
+        props.forEach { writeInt32(copy, it.valueOffset, level) }
+        return copy
+    }
+
+    /** Parses one IntProperty whose type tag starts at [tagAt]. */
+    private fun parseAt(b: ByteArray, tagAt: Int): IntProp? {
+        // Type-name length (12) sits right before the tag.
+        if (tagAt < 4 || readInt32(b, tagAt - 4) != TYPE_TAG.size) return null
+        // Walk back over the property name: "...nameLen | name\0 | 12 | tag".
+        val nameEnd = tagAt - 4 // index just past the name's NUL
+        if (nameEnd < 1 || b[nameEnd - 1].toInt() != 0) return null
+        var nameStart = nameEnd - 1
+        while (nameStart > 0 && b[nameStart - 1] in 0x20..0x7E) nameStart--
+        val nameLen = nameEnd - nameStart
+        if (nameLen < 2 || nameStart < 4 || readInt32(b, nameStart - 4) != nameLen) return null
+        val name = String(b, nameStart, nameLen - 1, Charsets.ISO_8859_1)
+        // After the tag: int64 size == 4, one GUID flag byte == 0, then the value.
+        val sizeAt = tagAt + TYPE_TAG.size
+        val valueAt = sizeAt + 8 + 1
+        if (valueAt + 4 > b.size) return null
+        if (readInt32(b, sizeAt) != 4 || readInt32(b, sizeAt + 4) != 0) return null
+        if (b[sizeAt + 8].toInt() != 0) return null
+        return IntProp(name, valueAt, readInt32(b, valueAt))
+    }
+
+    private fun readInt32(b: ByteArray, at: Int): Int =
+        (b[at].toInt() and 0xFF) or
+            ((b[at + 1].toInt() and 0xFF) shl 8) or
+            ((b[at + 2].toInt() and 0xFF) shl 16) or
+            ((b[at + 3].toInt() and 0xFF) shl 24)
+
+    private fun writeInt32(b: ByteArray, at: Int, v: Int) {
+        b[at] = v.toByte()
+        b[at + 1] = (v shr 8).toByte()
+        b[at + 2] = (v shr 16).toByte()
+        b[at + 3] = (v shr 24).toByte()
+    }
+
+    private fun indexOf(hay: ByteArray, needle: ByteArray, from: Int): Int {
+        outer@ for (i in from..hay.size - needle.size) {
+            for (j in needle.indices) if (hay[i + j] != needle[j]) continue@outer
+            return i
+        }
+        return -1
+    }
+}

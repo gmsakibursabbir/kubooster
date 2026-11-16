@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.3 (GFX correctness fixes: section-aware config writes, Super Smooth preset, remove-flow fix)**
+Last updated: 2026-11-16 · Build: **v1.1.4 (Active.sav FPS unlock — writes the frame rate the game actually uses)**
+
+## v1.1.4 changes
+
+1. **Active.sav FPS unlock (the real fix for "FPS not working")** — modern game versions take the selected frame rate from `Saved/SaveGames/Active.sav` (UE4 GVAS save), not from `UserCustom.ini`. Applying GFX now edits both: the .ini cvars as before, plus every frame-rate property in the save (`FPSLevel`, `BattleFPS`, `LobbyFPS`, and any other `*FPS*` int property) is set in place to the matching level (2 Power Saving · 3 Medium · 4 High(30) · 5 Ultra(40) · 6 Extreme(60) · 7 Extreme+(90) · 8 Ultra Extreme(120)). Property layout matches the open-source MK-PUBG-Mobile-Tool.
+2. **Honest apply result** — Success is reported only when the save write is verified too; specific failure messages guide the user (Active.sav missing / no FPS field yet → open the game once, change Frame Rate, fully close it, apply again).
+3. **Active.sav is backed up separately** (restored by Remove GFX together with the .ini); the Current config card shows the save's actual frame-rate level; after applying, users are warned not to change Frame Rate in the game again (it overwrites the unlock).
+4. Unit tests cover the GVAS editor: read/apply/round-trip byte-exactness, non-FPS properties untouched, no-FPS-field no-write, level mapping.
 
 ## v1.1.3 changes
 

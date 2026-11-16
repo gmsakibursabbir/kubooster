@@ -28,6 +28,11 @@ class PubgGfxEngine(
         "/storage/emulated/0/Android/data/$packageName/files/UE4Game/ShadowTrackerExtra/" +
             "ShadowTrackerExtra/Saved/Config/Android/UserCustom.ini"
 
+    /** The UE4 save holding the selected frame rate (what the game actually uses). */
+    fun savePath(packageName: String): String =
+        "/storage/emulated/0/Android/data/$packageName/files/UE4Game/ShadowTrackerExtra/" +
+            "ShadowTrackerExtra/Saved/SaveGames/Active.sav"
+
     private fun configDir(packageName: String): String =
         configPath(packageName).substringBeforeLast('/')
 
@@ -47,9 +52,12 @@ class PubgGfxEngine(
         result.exitCode == 0 && String(result.stdout, Charsets.ISO_8859_1).trim().isNotEmpty()
     }
 
-    suspend fun readConfig(packageName: String): ByteArray? = withContext(dispatchers.io) {
-        val result = shizuku.runShell("cat '${configPath(packageName)}'")
-            ?: return@withContext null
+    suspend fun readConfig(packageName: String): ByteArray? = readFile(configPath(packageName))
+
+    suspend fun readSave(packageName: String): ByteArray? = readFile(savePath(packageName))
+
+    private suspend fun readFile(path: String): ByteArray? = withContext(dispatchers.io) {
+        val result = shizuku.runShell("cat '$path'") ?: return@withContext null
         if (result.exitCode != 0) null else result.stdout
     }
 
@@ -66,17 +74,23 @@ class PubgGfxEngine(
      * comparing byte-for-byte.
      */
     suspend fun writeConfigVerified(packageName: String, bytes: ByteArray): Boolean =
+        writeFileVerified(configPath(packageName), bytes)
+
+    suspend fun writeSaveVerified(packageName: String, bytes: ByteArray): Boolean =
+        writeFileVerified(savePath(packageName), bytes)
+
+    private suspend fun writeFileVerified(path: String, bytes: ByteArray): Boolean =
         withContext(dispatchers.io) {
             val feed = shizuku.runShell("cat > $tempPath", stdin = bytes)
                 ?: return@withContext false
             if (feed.exitCode != 0) return@withContext false
             val copy = shizuku.runShell(
-                "cp $tempPath '${configPath(packageName)}' && rm -f $tempPath && echo KUB_OK",
+                "cp $tempPath '$path' && rm -f $tempPath && echo KUB_OK",
             ) ?: return@withContext false
             val copied = copy.exitCode == 0 &&
                 String(copy.stdout, Charsets.ISO_8859_1).contains("KUB_OK")
             if (!copied) return@withContext false
-            readConfig(packageName)?.contentEquals(bytes) == true
+            readFile(path)?.contentEquals(bytes) == true
         }
 
     // ---- Backup (app-private storage) ----------------------------------
@@ -104,5 +118,17 @@ class PubgGfxEngine(
     fun deleteBackup(packageName: String) {
         backupFile(packageName).delete()
         backupMetaFile(packageName).delete()
+        saveBackupFile(packageName).delete()
     }
+
+    // Active.sav backup, kept beside the .ini backup.
+    private fun saveBackupFile(packageName: String) = File(backupDir(), "$packageName.sav")
+
+    fun saveBackupExists(packageName: String): Boolean = saveBackupFile(packageName).exists()
+
+    fun storeSaveBackup(packageName: String, bytes: ByteArray) =
+        saveBackupFile(packageName).writeBytes(bytes)
+
+    fun saveBackupBytes(packageName: String): ByteArray? =
+        saveBackupFile(packageName).takeIf { it.exists() }?.readBytes()
 }

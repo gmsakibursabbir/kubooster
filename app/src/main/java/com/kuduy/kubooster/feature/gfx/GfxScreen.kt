@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.kuduy.kubooster.core.designsystem.InfoRow
 import com.kuduy.kubooster.core.designsystem.KubeCard
+import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
 import com.kuduy.kubooster.domain.model.GameVariant
 import kotlinx.coroutines.delay
@@ -294,7 +295,7 @@ fun GfxScreen(
                                 }
                             }
                             Text(
-                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. After applying, pick the matching option in the game's Frame Rate settings.",
+                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. KuBooster sets it directly in the game's save (Active.sav). Don't change Frame Rate in the game afterwards — that overwrites it. Real FPS can't exceed your screen's refresh rate.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -479,9 +480,13 @@ private fun ShizukuPill(state: GfxUiState) {
 
 @Composable
 private fun CurrentConfigCard(status: GfxFileStatus.Loaded) {
+    // Active.sav holds the frame rate the game actually uses; prefer it.
     val fpsSummary = run {
+        val levels = status.saveFpsLevels?.values?.distinct().orEmpty()
         val values = GfxConfigEditor.MANAGED_FPS_KEYS.mapNotNull { status.fpsValues[it] }
         when {
+            levels.size == 1 -> ActiveSavEditor.levelLabel(levels.first())
+            levels.size > 1 -> "Mixed"
             values.isEmpty() -> "Game default"
             values.distinct().size == 1 -> "${values.first()} FPS"
             else -> "Mixed"
@@ -505,6 +510,16 @@ private fun CurrentConfigCard(status: GfxFileStatus.Loaded) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+        )
+        InfoRow(
+            label = "Active.sav frame rate",
+            value = when {
+                status.saveFpsLevels == null -> "file not found"
+                status.saveFpsLevels.isEmpty() -> "not set yet"
+                else -> status.saveFpsLevels.entries.joinToString { "${it.key}=${it.value}" }
+            },
+            valueColor = if (!status.saveFpsLevels.isNullOrEmpty())
+                MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         GfxConfigEditor.MANAGED_FPS_KEYS.forEach { key ->
             InfoRow(

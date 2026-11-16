@@ -3,6 +3,7 @@ package com.kuduy.kubooster.feature.gfx
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
 import com.kuduy.kubooster.data.gfx.PubgGfxEngine
 import com.kuduy.kubooster.di.AppContainer
@@ -23,6 +24,8 @@ sealed interface GfxFileStatus {
         val cvars: Map<String, String>,
         val fpsValues: Map<String, String>,
         val configPath: String,
+        /** Frame-rate properties from Active.sav (name -> level); null = file not found. */
+        val saveFpsLevels: Map<String, Int>? = null,
     ) : GfxFileStatus
     /** File not present at the documented path; listing shows what is there. */
     data class Missing(
@@ -113,7 +116,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                     targets = installed,
                     selectedPackage = preferred?.variant?.packageName,
                     busy = false,
-                    hasBackup = preferred?.let { t -> engine.backupExists(t.variant.packageName) } ?: false,
+                    hasBackup = preferred?.let { t -> hasAnyBackup(t.variant.packageName) } ?: false,
                 )
             }
             if (preferred != null) loadFile()
@@ -121,7 +124,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun selectTarget(packageName: String) {
-        _state.update { it.copy(selectedPackage = packageName, hasBackup = engine.backupExists(packageName)) }
+        _state.update { it.copy(selectedPackage = packageName, hasBackup = hasAnyBackup(packageName)) }
         loadFile()
     }
 
@@ -182,6 +185,9 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                     } else {
                         val content = String(bytes, Charsets.ISO_8859_1)
                         val cvars = GfxConfigEditor.readCvars(content)
+                        val saveLevels = engine.readSave(pkg)?.let { sav ->
+                            ActiveSavEditor.readFpsProperties(sav).associate { it.name to it.value }
+                        }
                         _state.update {
                             it.copy(
                                 status = GfxFileStatus.Loaded(
@@ -190,6 +196,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                                         key in GfxConfigEditor.MANAGED_FPS_KEYS
                                     },
                                     configPath = engine.configPath(pkg),
+                                    saveFpsLevels = saveLevels,
                                 ),
                             )
                         }
@@ -250,20 +257,30 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             val edited = GfxConfigEditor.applyCvars(content, values)
             val ok = engine.writeConfigVerified(pkg, edited.toByteArray(Charsets.ISO_8859_1))
             if (ok) {
+                // The frame rate the game actually runs at lives in Active.sav,
+                // not in UserCustom.ini — without this step the unlock does nothing.
+                val saveResult = applySaveFps(pkg, fps)
+                val saveOk = saveResult == SaveFpsResult.Written
                 _state.update {
                     it.copy(
                         busy = false,
                         hasBackup = true,
-                        applyPhase = GfxApplyPhase.Success,
+                        applyPhase = if (saveOk) GfxApplyPhase.Success else GfxApplyPhase.Failed,
                         message = buildString {
-                            append("Applied & verified: frame rate $fps")
+                            if (saveOk) {
+                                append("Applied & verified: frame rate ${ActiveSavEditor.levelLabel(ActiveSavEditor.fpsLevel(fps))}")
+                            } else {
+                                append("Graphics config written, but the frame rate was NOT unlocked: ")
+                                append(saveResult.reason)
+                            }
                             if (presetKey != null) append(", graphics $presetLabel")
                             if (resolutionKey != "default") append(", resolution $resolutionKey")
-                            append(". Default config is backed up and restorable any time.")
+                            append(". Originals are backed up and restorable any time.")
+                            if (saveOk) append(" Do not change Frame Rate in the game's settings afterwards — that overwrites the unlock.")
                         },
                     )
                 }
-                launchGame(pkg)
+                if (saveOk) launchGame(pkg)
             } else {
                 _state.update {
                     it.copy(
@@ -274,6 +291,23 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 }
             }
         }
+    }
+
+    enum class SaveFpsResult(val reason: String) {
+        Written(""),
+        Missing("Active.sav not found. Open the game once, change Frame Rate in its settings, fully close it, then apply again"),
+        NoFpsField("Active.sav has no frame-rate setting yet. Open the game, pick any Frame Rate option once, fully close it, then apply again"),
+        WriteFailed("writing Active.sav failed verification (file left unchanged). Restart Shizuku and retry"),
+    }
+
+    /** Backs up Active.sav once, then sets every frame-rate property to the level for [fps]. */
+    private suspend fun applySaveFps(pkg: String, fps: Int): SaveFpsResult {
+        val sav = engine.readSave(pkg) ?: return SaveFpsResult.Missing
+        val edited = ActiveSavEditor.applyFpsLevel(sav, ActiveSavEditor.fpsLevel(fps))
+            ?: return SaveFpsResult.NoFpsField
+        if (!engine.saveBackupExists(pkg)) engine.storeSaveBackup(pkg, sav)
+        if (!engine.saveBackupExists(pkg)) return SaveFpsResult.WriteFailed
+        return if (engine.writeSaveVerified(pkg, edited)) SaveFpsResult.Written else SaveFpsResult.WriteFailed
     }
 
     /** Opens the selected game after a successful apply ("Apply & Run Game"). */
@@ -302,11 +336,13 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 return@launch
             }
             val backup = engine.backupBytes(pkg)
-            if (backup == null) {
+            val saveBackup = engine.saveBackupBytes(pkg)
+            if (backup == null && saveBackup == null) {
                 _state.update { it.copy(busy = false, message = "No backup stored yet — the config was never modified.") }
                 return@launch
             }
-            val ok = engine.writeConfigVerified(pkg, backup)
+            val ok = (backup == null || engine.writeConfigVerified(pkg, backup)) &&
+                (saveBackup == null || engine.writeSaveVerified(pkg, saveBackup))
             if (ok) {
                 // The config is back to its default state: drop the backup so
                 // the "Remove GFX settings" card disappears (a stale backup
@@ -319,7 +355,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                     busy = false,
                     hasBackup = if (ok) false else _state.value.hasBackup,
                     message = if (ok) {
-                        "GFX settings removed — UserCustom.ini is back to its original, default state."
+                        "GFX settings removed — UserCustom.ini and Active.sav are back to their original state."
                     } else {
                         "Remove failed — the file was left unchanged. Try again with Shizuku running."
                     },
@@ -328,6 +364,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             if (ok) loadFile()
         }
     }
+
+    private fun hasAnyBackup(pkg: String) = engine.backupExists(pkg) || engine.saveBackupExists(pkg)
 
     fun clearMessage() = _state.update { it.copy(message = null) }
 
