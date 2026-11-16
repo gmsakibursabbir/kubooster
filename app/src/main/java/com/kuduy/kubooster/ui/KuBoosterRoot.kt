@@ -216,6 +216,7 @@ fun KuBoosterRoot(container: AppContainer) {
                     onRequestShizuku = { container.shizukuRepository.requestPermission() },
                     onApply = { vm.apply() },
                     onRemoveGfx = { vm.removeGfx() },
+                    onDiscardBackup = { vm.discardSaveBackup() },
                     onDismissOverlay = { vm.dismissApplyPhase() },
                 )
             }

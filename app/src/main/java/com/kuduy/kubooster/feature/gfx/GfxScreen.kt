@@ -82,6 +82,7 @@ fun GfxScreen(
     onRequestShizuku: () -> Unit,
     onApply: () -> Unit,
     onRemoveGfx: () -> Unit,
+    onDiscardBackup: () -> Unit,
     onDismissOverlay: () -> Unit,
 ) {
     var showConfirm by remember { mutableStateOf(false) }
@@ -222,23 +223,6 @@ fun GfxScreen(
                             }
 
                             Spacer(Modifier.height(16.dp))
-                            SectionLabel("Resolution")
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                            ) {
-                                GfxConfigEditor.RESOLUTION_KEYS.forEach { key ->
-                                    ChoiceChip(
-                                        label = resolutionLabel(key),
-                                        selected = state.resolutionKey == key,
-                                        onClick = { onSelectResolution(key) },
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.height(16.dp))
                             SectionLabel("Graphics")
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -246,29 +230,20 @@ fun GfxScreen(
                                     .fillMaxWidth()
                                     .horizontalScroll(rememberScrollState()),
                             ) {
-                                ChoiceChip("Default", state.presetKey == null, { onSelectPreset(null) })
-                                ChoiceChip("Super Smooth", state.presetKey == "supersmooth", { onSelectPreset("supersmooth") })
-                                ChoiceChip("Smooth", state.presetKey == "smooth", { onSelectPreset("smooth") })
-                                ChoiceChip("Balanced", state.presetKey == "balanced", { onSelectPreset("balanced") })
-                                ChoiceChip("HD", state.presetKey == "hd", { onSelectPreset("hd") })
-                                ChoiceChip("Ultra HD", state.presetKey == "ultrahdr", { onSelectPreset("ultrahdr") })
+                                listOf("supersmooth", "smooth", "balanced", "hd", "ultrahdr").forEach { key ->
+                                    ChoiceChip(presetLabelOf(key), state.presetKey == key, { onSelectPreset(key) })
+                                }
                             }
-                            Text(
-                                text = presetDescription(state.presetKey),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
 
                             Spacer(Modifier.height(16.dp))
-                            SectionLabel("FPS Limit")
+                            SectionLabel("Frame rate")
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .horizontalScroll(rememberScrollState()),
                             ) {
-                                listOf(30, 60, 90, 120).forEach { fps ->
+                                listOf(60, 90, 120).forEach { fps ->
                                     ChoiceChip(
                                         label = fpsGameLabel(fps),
                                         selected = state.fpsTarget == fps,
@@ -277,7 +252,7 @@ fun GfxScreen(
                                 }
                             }
                             Text(
-                                "For 90/120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate. Don't change graphics or frame rate in the game afterwards.",
+                                "Higher graphics make the game lower the frame rate. After applying, don't change these in the game.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -305,22 +280,9 @@ fun GfxScreen(
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 )
                             }
-                            Text(
-                                "Your default config is backed up automatically before the first write — remove GFX any time to go back.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp),
-                            )
 
-                            // ---- Current values -------------------------
                             Spacer(Modifier.height(18.dp))
-                            CurrentConfigCard(status)
-
-                            // ---- Remove / restore -----------------------
-                            Spacer(Modifier.height(14.dp))
-                            RemoveGfxCard(state, onRemoveGfx)
+                            CurrentConfigCard(status, state, onRemoveGfx, onDiscardBackup)
                         }
                     }
                 }
@@ -377,13 +339,6 @@ fun GfxScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    "Default config backed up — remove GFX any time to restore it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 32.dp),
-                )
             }
             else -> Unit
         }
@@ -420,7 +375,7 @@ private fun GfxLogCard() {
             TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide" else "Show (${lines.size})") }
         }
         Text(
-            "If FPS doesn't unlock, tap Share and send this log. It holds only file sizes, setting names and values.",
+            "Share this if something doesn't work.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -506,9 +461,18 @@ private fun ShizukuPill(state: GfxUiState) {
 
 // ---- Current values ---------------------------------------------------------
 
-/** What the game will use, read from its save (combat settings), in the game's own names. */
+/**
+ * What the game will use, read from its save (combat settings), in the
+ * game's own names — plus Restore (shows exactly what it puts back) and
+ * Discard for a bad backup.
+ */
 @Composable
-private fun CurrentConfigCard(status: GfxFileStatus.Loaded) {
+private fun CurrentConfigCard(
+    status: GfxFileStatus.Loaded,
+    state: GfxUiState,
+    onRemoveGfx: () -> Unit,
+    onDiscardBackup: () -> Unit,
+) {
     val fps = status.saveFpsLevels?.get("BattleFPS") ?: status.saveFpsLevels?.values?.firstOrNull()
     KubeCard(Modifier.fillMaxWidth()) {
         Text("In game now", style = MaterialTheme.typography.titleMedium)
@@ -524,31 +488,21 @@ private fun CurrentConfigCard(status: GfxFileStatus.Loaded) {
             value = status.saveQuality?.let(ActiveSavEditor::qualityLabel) ?: "Not set",
             valueColor = MaterialTheme.colorScheme.primary,
         )
-    }
-}
-
-// ---- Remove / restore -------------------------------------------------------
-
-@Composable
-private fun RemoveGfxCard(state: GfxUiState, onRemoveGfx: () -> Unit) {
-    if (!state.hasBackup) return
-    KubeCard(Modifier.fillMaxWidth()) {
-        Text("Reset to default", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Removes every GFX change: the backed-up default UserCustom.ini is written back byte-exact and the game returns to its original settings.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-        )
-        Button(
-            onClick = onRemoveGfx,
-            enabled = !state.busy,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError,
-            ),
-        ) {
-            Text("Remove GFX settings")
+        if (state.hasBackup) {
+            Text(
+                "Restore puts back: ${state.restoreSummary ?: "original graphics config"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Row {
+                TextButton(onClick = onRemoveGfx, enabled = !state.busy) {
+                    Text("Restore", color = MaterialTheme.colorScheme.error)
+                }
+                if (state.restoreSummary != null) {
+                    TextButton(onClick = onDiscardBackup, enabled = !state.busy) { Text("Discard backup") }
+                }
+            }
         }
     }
 }
@@ -702,23 +656,13 @@ private fun fpsGameLabel(fps: Int): String = when (fps) {
     else -> "$fps"
 }
 
-private fun presetDescription(key: String?): String = when (key) {
-    null -> "Leave graphics exactly as the game set them — only the frame rate changes."
-    "supersmooth" -> "Lightest tuning, everything optional off — matches the game's Super Smooth level. For weak devices and highest FPS."
-    "smooth" -> "Fewest shadows and effects — least lag, best for weak devices and high FPS."
-    "balanced" -> "Middle ground between visuals and performance."
-    "hd" -> "Sharper visuals, more device load."
-    "ultrahdr" -> "Maximum quality with HDR lighting — needs a strong device."
-    else -> ""
-}
-
 private fun presetLabelOf(key: String?): String = when (key) {
     null -> "Game's own"
     "supersmooth" -> "Super Smooth"
     "smooth" -> "Smooth"
     "balanced" -> "Balanced"
     "hd" -> "HD"
-    "ultrahdr" -> "Ultra HD"
+    "ultrahdr" -> "Ultra HDR"
     else -> key
 }
 

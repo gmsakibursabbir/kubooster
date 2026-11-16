@@ -55,10 +55,15 @@ data class GfxUiState(
     val hasBackup: Boolean = false,
     val gameRunning: Boolean? = null,
     val message: String? = null,
+    /** What Restore will put back, in the game's names (null = no game-settings backup). */
+    val restoreSummary: String? = null,
     /** Frame rate chosen in the UI (null = nothing chosen yet). */
-    val fpsTarget: Int? = null,
-    /** Graphics preset key from [GfxConfigEditor.GRAPHICS_PRESETS]; null = keep the game's own graphics. */
-    val presetKey: String? = null,
+    val fpsTarget: Int? = 90,
+    /**
+     * Graphics preset key from [GfxConfigEditor.GRAPHICS_PRESETS]. Defaults to
+     * Super Smooth: higher graphics make the game lower the frame rate.
+     */
+    val presetKey: String? = "supersmooth",
     /** Resolution tier: "default" | "720p" | "1080p". */
     val resolutionKey: String = "default",
     /** Drives the full-screen apply overlays. */
@@ -211,6 +216,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                                         ActiveSavEditor.readIntProperties(s).firstOrNull { it.name == "BattleRenderQuality" }?.value
                                     },
                                 ),
+                                hasBackup = hasAnyBackup(pkg),
+                                restoreSummary = restoreSummaryFor(pkg),
                             )
                         }
                     }
@@ -268,7 +275,10 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 return@launch
             }
-            val content = String(original, Charsets.ISO_8859_1)
+            // Build from the pristine backup, so keys written by an earlier
+            // apply (or older KuBooster versions) never linger in the file.
+            val base = engine.backupBytes(pkg) ?: original
+            val content = String(base, Charsets.ISO_8859_1)
             val edited = GfxConfigEditor.applyCvars(content, values)
             val ok = engine.writeConfigVerified(pkg, edited.toByteArray(Charsets.ISO_8859_1))
             GfxLog.log("UserCustom.ini write: ${if (ok) "OK" else "FAILED"} (${values.size} keys)")
@@ -278,10 +288,12 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 val saveResult = applySaveFps(pkg, fps, presetKey)
                 GfxLog.log("apply result: $saveResult")
                 val saveOk = saveResult == SaveFpsResult.Written
+                if (saveOk) syncRefreshRate(fps)
                 _state.update {
                     it.copy(
                         busy = false,
                         hasBackup = true,
+                        restoreSummary = restoreSummaryFor(pkg),
                         applyPhase = if (saveOk) GfxApplyPhase.Success else GfxApplyPhase.Failed,
                         message = buildString {
                             if (saveOk) {
@@ -378,6 +390,23 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         GfxLog.log("Active.sav related names: " + ActiveSavEditor.describeRelevantStrings(sav).joinToString(" | ").ifEmpty { "none" })
     }
 
+    /**
+     * Above 60 FPS, keeps the screen at its highest refresh rate so the game
+     * can't hold it at 60 Hz while rendering faster (judder that looks like
+     * lag — seen on PUBG Flash, which doesn't offer 90 itself). At 60 or
+     * below, any earlier lock is undone.
+     */
+    private suspend fun syncRefreshRate(fps: Int) {
+        val max = engine.maxRefreshRate()
+        if (fps > 60 && max > 60f) {
+            val readBack = engine.lockRefreshRate(max)
+            GfxLog.log("refresh rate locked to ${max}Hz (panel max): $readBack")
+        } else {
+            engine.restoreRefreshRate()?.let { GfxLog.log("refresh rate lock removed: $it") }
+            if (fps > 60) GfxLog.log("panel max is ${max}Hz — screen can't show more than that")
+        }
+    }
+
     /** Opens the selected game after a successful apply ("Apply & Run Game"). */
     private fun launchGame(packageName: String) {
         try {
@@ -410,9 +439,10 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 return@launch
             }
             GfxLog.log("---- remove $pkg: ini backup ${backup != null}, sav backup ${saveBackup != null}")
-            val ok = (backup == null || engine.writeConfigVerified(pkg, backup)) &&
-                (saveBackup == null || engine.writeSaveVerified(pkg, saveBackup))
+            val iniOk = backup == null || engine.writeConfigVerified(pkg, backup)
+            val ok = iniOk && (saveBackup == null || restoreSaveValues(pkg, saveBackup))
             GfxLog.log("remove result: ${if (ok) "OK" else "FAILED"}")
+            if (ok) engine.restoreRefreshRate()?.let { GfxLog.log("refresh rate restored: $it") }
             if (ok) {
                 // The config is back to its default state: drop the backup so
                 // the "Remove GFX settings" card disappears (a stale backup
@@ -432,6 +462,44 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 )
             }
             if (ok) loadFile()
+        }
+    }
+
+    /**
+     * Puts back only the frame-rate and graphics values from the backup, into
+     * the current Active.sav. That file also holds controls, sensitivity and
+     * other settings the player may have changed since; overwriting it with
+     * the old copy would undo them.
+     */
+    private suspend fun restoreSaveValues(pkg: String, backup: ByteArray): Boolean {
+        val original = ActiveSavEditor.managedValues(backup)
+        val current = engine.readSave(pkg) ?: return engine.writeSaveVerified(pkg, backup)
+        GfxLog.log("restoring Active.sav values: $original")
+        return engine.writeSaveVerified(pkg, ActiveSavEditor.setValues(current, original))
+    }
+
+    /** "Super Smooth · Extreme+ (90)" for the game-settings backup, or null. */
+    private fun restoreSummaryFor(pkg: String): String? {
+        val values = engine.saveBackupBytes(pkg)?.let(ActiveSavEditor::managedValues) ?: return null
+        val quality = values["BattleRenderQuality"]?.let(ActiveSavEditor::qualityLabel)
+        val fps = values["BattleFPS"]?.let(ActiveSavEditor::levelLabel)
+        return listOfNotNull(quality, fps).joinToString(" · ").ifEmpty { "original settings" }
+    }
+
+    /**
+     * Discards a bad game-settings backup (e.g. one saved after an earlier
+     * faulty apply). The next apply saves the then-current settings instead.
+     */
+    fun discardSaveBackup() {
+        val pkg = _state.value.selectedPackage ?: return
+        engine.deleteSaveBackup(pkg)
+        GfxLog.log("game-settings backup discarded for $pkg")
+        _state.update {
+            it.copy(
+                hasBackup = hasAnyBackup(pkg),
+                restoreSummary = null,
+                message = "Backup discarded. Set graphics and frame rate in the game (or use its Reset Graphics), then apply again.",
+            )
         }
     }
 

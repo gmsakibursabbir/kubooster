@@ -121,6 +121,21 @@ object ActiveSavEditor {
         return applyLevel(bytes, level, ::isQualityProperty)
     }
 
+    /** The frame-rate and graphics values GFX manages (what Remove restores). */
+    fun managedValues(bytes: ByteArray): Map<String, Int> = readIntProperties(bytes)
+        .filter { isFpsProperty(it.name) || isQualityProperty(it.name) }
+        .associate { it.name to it.value }
+
+    /**
+     * Sets each named int property that exists in [bytes] to its value in
+     * [values]; everything else (other game settings) is left untouched.
+     */
+    fun setValues(bytes: ByteArray, values: Map<String, Int>): ByteArray {
+        val copy = bytes.copyOf()
+        readIntProperties(bytes).forEach { p -> values[p.name]?.let { writeInt32(copy, p.valueOffset, it) } }
+        return copy
+    }
+
     private fun applyLevel(bytes: ByteArray, level: Int, match: (String) -> Boolean): ByteArray? {
         val props = readIntProperties(bytes).filter { match(it.name) }
         if (props.isEmpty()) return null

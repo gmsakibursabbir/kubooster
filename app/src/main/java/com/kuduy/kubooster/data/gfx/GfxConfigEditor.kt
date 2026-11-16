@@ -63,7 +63,6 @@ object GfxConfigEditor {
             "r.ParticleLODBias" to "2",
             "r.MobileNumDynamicPointLights" to "0",
             "r.MaxAnisotropy" to "1",
-            "r.Streaming.PoolSize" to "200",
         ),
         // Fastest standard: minimal shadows/effects/particles — tuned to avoid
         // lag on weak devices. Resolution scale stays at 0.7 (not lower) so the
@@ -89,7 +88,6 @@ object GfxConfigEditor {
             "r.ParticleLODBias" to "2",
             "r.MobileNumDynamicPointLights" to "0",
             "r.MaxAnisotropy" to "4",
-            "r.Streaming.PoolSize" to "200",
         ),
         // Middle ground — scaled-down version of the reference profile.
         "balanced" to mapOf(
@@ -113,7 +111,6 @@ object GfxConfigEditor {
             "r.ParticleLODBias" to "2",
             "r.MobileNumDynamicPointLights" to "0.8",
             "r.MaxAnisotropy" to "8",
-            "r.Streaming.PoolSize" to "300",
         ),
         // Matches the real game-written profile from the reference corpus.
         "hd" to mapOf(
@@ -137,7 +134,6 @@ object GfxConfigEditor {
             "r.ParticleLODBias" to "2",
             "r.MobileNumDynamicPointLights" to "0.8",
             "r.MaxAnisotropy" to "8",
-            "r.Streaming.PoolSize" to "300",
         ),
         // HDR pipeline with full lighting — for strong devices.
         "ultrahdr" to mapOf(
@@ -162,7 +158,6 @@ object GfxConfigEditor {
             "r.ParticleLODBias" to "0",
             "r.MobileNumDynamicPointLights" to "1.0",
             "r.MaxAnisotropy" to "8",
-            "r.Streaming.PoolSize" to "300",
             "r.Mobile.TonemapperFilm" to "1",
             "r.Mobile.AlwaysResolveDepth" to "1",
         ),

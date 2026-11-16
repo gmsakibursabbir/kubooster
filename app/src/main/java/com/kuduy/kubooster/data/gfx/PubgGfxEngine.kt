@@ -143,10 +143,61 @@ class PubgGfxEngine(
         saveBackupFile(packageName).delete()
     }
 
+    // ---- Display refresh-rate lock -------------------------------------
+    //
+    // A game asks Android for a refresh rate based on the highest frame rate
+    // it thinks the device allows. When GFX unlocks a higher level than the
+    // game offers (e.g. 90 on PUBG Flash), the game may keep the screen at
+    // 60 Hz while rendering 90 FPS — uneven frame pacing that looks like heavy
+    // lag. Locking peak/min refresh rate to the panel's maximum avoids that.
+    // Originals are saved once (device-wide) and restored on Remove.
+
+    private val refreshKeys = listOf("peak_refresh_rate", "min_refresh_rate")
+    private fun refreshBackupFile() = File(backupDir(), "refresh_rate.txt")
+
+    fun maxRefreshRate(): Float = com.kuduy.kubooster.system.DisplayCapabilitiesProvider(context)
+        .read().supportedRefreshRatesHz.maxOrNull() ?: 60f
+
+    private suspend fun getSystemSetting(key: String): String? = withContext(dispatchers.io) {
+        val r = shizuku.runShell("settings get system $key") ?: return@withContext null
+        String(r.stdout, Charsets.ISO_8859_1).trim().takeIf { it.isNotEmpty() }
+    }
+
+    /** Locks the display at [hz]. Returns the values read back, for the log. */
+    suspend fun lockRefreshRate(hz: Float): Map<String, String?> = withContext(dispatchers.io) {
+        if (!refreshBackupFile().exists()) {
+            // "null" = the key was unset; restore deletes it again.
+            val lines = refreshKeys.map { "$it=${getSystemSetting(it) ?: "null"}" }
+            refreshBackupFile().writeText(lines.joinToString("\n"))
+        }
+        val value = hz.toString()
+        refreshKeys.forEach { shizuku.runShell("settings put system $it $value") }
+        refreshKeys.associateWith { getSystemSetting(it) }
+    }
+
+    /** Puts the original refresh-rate settings back. Null when nothing was locked. */
+    suspend fun restoreRefreshRate(): Map<String, String?>? = withContext(dispatchers.io) {
+        val file = refreshBackupFile().takeIf { it.exists() } ?: return@withContext null
+        file.readLines().mapNotNull { line ->
+            line.split('=', limit = 2).takeIf { it.size == 2 && it[0] in refreshKeys }
+        }.forEach { (key, original) ->
+            // Only values read from Settings earlier are ever written back.
+            if (original == "null") shizuku.runShell("settings delete system $key")
+            else if (original.toFloatOrNull() != null) shizuku.runShell("settings put system $key $original")
+        }
+        file.delete()
+        refreshKeys.associateWith { getSystemSetting(it) }
+    }
+
     // Active.sav backup, kept beside the .ini backup.
     private fun saveBackupFile(packageName: String) = File(backupDir(), "$packageName.sav")
 
     fun saveBackupExists(packageName: String): Boolean = saveBackupFile(packageName).exists()
+
+    /** Drops a bad game-settings backup; the next apply saves the current settings instead. */
+    fun deleteSaveBackup(packageName: String) {
+        saveBackupFile(packageName).delete()
+    }
 
     fun storeSaveBackup(packageName: String, bytes: ByteArray) =
         saveBackupFile(packageName).writeBytes(bytes)

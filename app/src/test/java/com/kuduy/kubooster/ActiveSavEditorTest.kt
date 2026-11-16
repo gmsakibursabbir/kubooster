@@ -73,6 +73,16 @@ class ActiveSavEditorTest {
     }
 
     @Test
+    fun `restore puts back only fps and graphics, keeps other settings`() {
+        val backup = sav("BattleFPS" to 7, "BattleRenderQuality" to 1, "Sensitivity" to 50)
+        // Since the backup: GFX changed fps/graphics, player changed Sensitivity in game.
+        val current = sav("BattleFPS" to 8, "BattleRenderQuality" to 6, "Sensitivity" to 80)
+        val restored = ActiveSavEditor.setValues(current, ActiveSavEditor.managedValues(backup))
+        val after = ActiveSavEditor.readIntProperties(restored).associate { it.name to it.value }
+        assertEquals(mapOf("BattleFPS" to 7, "BattleRenderQuality" to 1, "Sensitivity" to 80), after)
+    }
+
+    @Test
     fun `fps to game level`() {
         assertEquals(4, ActiveSavEditor.fpsLevel(30))
         assertEquals(6, ActiveSavEditor.fpsLevel(60))
