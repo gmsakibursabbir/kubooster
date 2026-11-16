@@ -314,7 +314,7 @@ private fun variantShortLabel(variant: GameVariant): String = when (variant) {
  * official GitHub repository. Downloads come from github.com only.
  */
 @Composable
-private fun UpdateBanner(
+fun UpdateBanner(
     update: UpdateUiState,
     onDownload: () -> Unit,
     onInstall: () -> Unit,

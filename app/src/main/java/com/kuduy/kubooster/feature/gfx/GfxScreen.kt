@@ -1,44 +1,63 @@
 package com.kuduy.kubooster.feature.gfx
 
+import android.content.Intent
+import android.os.Build
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,12 +65,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import android.content.Intent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.kuduy.kubooster.core.designsystem.InfoRow
@@ -61,13 +82,13 @@ import com.kuduy.kubooster.data.gfx.GfxConfigEditor
 import com.kuduy.kubooster.data.gfx.GfxLog
 import com.kuduy.kubooster.domain.model.GameVariant
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
- * GFX mode — the real editor for PUBG's UserCustom.ini, styled after the
- * product design mockups: two-tone title, theme toggle, hero card, plain
- * section rows, and a full-width Apply & Run Game action. Requires Shizuku
- * (ADB-level file access, no root). Every apply is preceded by an explicit
- * backup of the default config; restoring/removing is one tap.
+ * GFX mode — the app's only screen. Layout follows the product mockup:
+ * header, Device Ready status, one card per setting (game version,
+ * resolution, graphics, frame rate, anti-aliasing), what the game uses now,
+ * and a sticky "Swipe to Apply & Boost" control. Requires Shizuku.
  */
 @Composable
 fun GfxScreen(
@@ -79,15 +100,17 @@ fun GfxScreen(
     onSelectFps: (Int) -> Unit,
     onSelectPreset: (String?) -> Unit,
     onSelectResolution: (String) -> Unit,
+    onSetAntiAliasing: (Boolean) -> Unit,
     onRequestShizuku: () -> Unit,
     onApply: () -> Unit,
     onRemoveGfx: () -> Unit,
     onDiscardBackup: () -> Unit,
     onDismissOverlay: () -> Unit,
+    /** Shown under the header, e.g. the in-app update banner. */
+    topContent: @Composable () -> Unit = {},
 ) {
     var showConfirm by remember { mutableStateOf(false) }
 
-    // Auto-dismiss the success overlay; "Launching game…" is informational.
     LaunchedEffect(state.applyPhase) {
         if (state.applyPhase == GfxApplyPhase.Success) {
             delay(2500)
@@ -95,213 +118,127 @@ fun GfxScreen(
         }
     }
 
+    val loaded = state.status as? GfxFileStatus.Loaded
+
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // ---- Header -------------------------------------------------
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "kuBooster",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    )
-                    Text(
-                        text = " GFX",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                ShizukuPill(state)
-                Spacer(Modifier.width(8.dp))
-                ThemeToggleButton(isDark, onToggleTheme)
-            }
-
-            Spacer(Modifier.height(4.dp))
+            Header(isDark, onToggleTheme)
+            topContent()
+            HeroCard(state, loaded)
 
             when {
                 !state.shizukuInstalled -> ShizukuMissingCard()
                 !state.shizukuReady -> ShizukuPermissionCard(onRequestShizuku, onRefresh)
                 state.targets.isEmpty() -> KubeCard(Modifier.fillMaxWidth()) {
                     Text(
-                        "No PUBG Mobile variant is installed. Install the game and open this screen again.",
+                        "No PUBG Mobile version is installed. Install the game and reopen KuBooster.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 else -> {
-                    state.gameRunning?.let { running ->
-                        if (running) {
-                            KubeCard(Modifier.fillMaxWidth()) {
-                                Text(
-                                    "PUBG is running. Close it completely (also from Recent apps) before applying — the game rewrites its config on exit.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                            Spacer(Modifier.height(16.dp))
-                        }
+                    if (state.gameRunning == true) {
+                        NoticeCard("PUBG is running. Close it completely (also from Recent apps) before applying.")
+                    }
+
+                    SettingCard(Icons.Filled.SportsEsports, "Game Version") {
+                        Segmented(
+                            options = state.targets.map { it.variant.packageName to variantShortLabel(it.variant) },
+                            selected = state.selectedPackage,
+                            onSelect = onSelectTarget,
+                        )
                     }
 
                     when (val status = state.status) {
-                        is GfxFileStatus.Loading, GfxFileStatus.Idle -> {
+                        is GfxFileStatus.Loading, GfxFileStatus.Idle -> KubeCard(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text("Reading game settings…", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        is GfxFileStatus.Unavailable -> ProblemCard("Can't access the game files", status.reason, onRefresh)
+                        is GfxFileStatus.Missing -> ProblemCard(
+                            "Game settings not found",
+                            "Open the game once, go to its graphics settings, close it fully, then tap Retry.",
+                            onRefresh,
+                        )
+                        is GfxFileStatus.Loaded -> {
+                            ResolutionCard(state.resolutionKey, onSelectResolution)
+
+                            SettingCard(Icons.Filled.HighQuality, "Graphics Quality") {
+                                TileGrid(
+                                    options = PRESETS.map { it to presetLabelOf(it) },
+                                    selected = state.presetKey,
+                                    onSelect = onSelectPreset,
+                                )
+                            }
+
+                            SettingCard(Icons.Filled.Timer, "FPS Limit") {
+                                Segmented(
+                                    options = listOf(30, 60, 90, 120).map { it to "$it" },
+                                    selected = state.fpsTarget,
+                                    onSelect = onSelectFps,
+                                )
+                                Hint("For 90 or 120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate.")
+                            }
+
                             KubeCard(Modifier.fillMaxWidth()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(Modifier.height(16.dp), strokeWidth = 2.dp)
+                                    CardIcon(Icons.Filled.BlurOn)
                                     Spacer(Modifier.width(10.dp))
-                                    Text("Reading UserCustom.ini…", style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                        }
-                        is GfxFileStatus.Unavailable -> {
-                            KubeCard(Modifier.fillMaxWidth()) {
-                                Text("Can't access the config", style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    status.reason,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                                OutlinedButton(onClick = onRefresh, modifier = Modifier.padding(top = 10.dp)) {
-                                    Text("Retry")
-                                }
-                            }
-                        }
-                        is GfxFileStatus.Missing -> {
-                            KubeCard(Modifier.fillMaxWidth()) {
-                                Text("Config file not found", style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    status.reason,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                                Text(
-                                    status.configPath,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 6.dp),
-                                )
-                                status.dirListing?.let {
-                                    Text(
-                                        "Folder contains: ${if (it.isBlank()) "(empty)" else it}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 6.dp),
-                                    )
-                                }
-                                OutlinedButton(onClick = onRefresh, modifier = Modifier.padding(top = 10.dp)) {
-                                    Text("Retry")
-                                }
-                            }
-                        }
-                        is GfxFileStatus.Loaded -> {
-
-                            // ---- Option sections (plain rows, per mockup) --
-                            SectionLabel("Game Version")
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                            ) {
-                                state.targets.forEach { target ->
-                                    ChoiceChip(
-                                        label = variantShortLabel(target.variant),
-                                        selected = target.variant.packageName == state.selectedPackage,
-                                        onClick = { onSelectTarget(target.variant.packageName) },
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Anti-Aliasing", style = MaterialTheme.typography.titleMedium)
+                                        Text(
+                                            "Smoothens jagged edges · costs FPS",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Switch(
+                                        checked = state.antiAliasing,
+                                        onCheckedChange = onSetAntiAliasing,
+                                        colors = SwitchDefaults.colors(
+                                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                        ),
                                     )
                                 }
                             }
 
-                            Spacer(Modifier.height(16.dp))
-                            SectionLabel("Graphics")
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                            ) {
-                                listOf("supersmooth", "smooth", "balanced", "hd", "ultrahdr").forEach { key ->
-                                    ChoiceChip(presetLabelOf(key), state.presetKey == key, { onSelectPreset(key) })
-                                }
-                            }
-
-                            Spacer(Modifier.height(16.dp))
-                            SectionLabel("Frame rate")
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                            ) {
-                                listOf(60, 90, 120).forEach { fps ->
-                                    ChoiceChip(
-                                        label = fpsGameLabel(fps),
-                                        selected = state.fpsTarget == fps,
-                                        onClick = { onSelectFps(fps) },
-                                    )
-                                }
-                            }
-                            Text(
-                                "Higher graphics make the game lower the frame rate. After applying, don't change these in the game.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-
-                            Spacer(Modifier.height(22.dp))
-
-                            // ---- Apply & Run Game ----------------------
-                            Button(
-                                onClick = { showConfirm = true },
-                                enabled = state.fpsTarget != null && !state.busy,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(54.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                            ) {
-                                Icon(Icons.Filled.Bolt, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "Apply & Run Game",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                )
-                            }
-
-                            Spacer(Modifier.height(18.dp))
-                            CurrentConfigCard(status, state, onRemoveGfx, onDiscardBackup)
+                            BackupCard(state, onRemoveGfx, onDiscardBackup)
                         }
                     }
                 }
             }
 
-            state.message?.let {
-                Spacer(Modifier.height(14.dp))
-                KubeCard(Modifier.fillMaxWidth()) {
-                    Text(it, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
+            state.message?.let { NoticeCard(it) }
             GfxLogCard()
 
-            Spacer(Modifier.height(28.dp))
+            // Room for the sticky swipe bar.
+            Spacer(Modifier.height(96.dp))
         }
 
-        // ---- Full-screen apply overlays (per mockup) -------------------
+        // ---- Sticky swipe-to-apply ------------------------------------
+        if (loaded != null && state.shizukuReady) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                SwipeToApply(
+                    enabled = state.fpsTarget != null && !state.busy,
+                    onSwiped = { showConfirm = true },
+                )
+            }
+        }
+
+        // ---- Apply overlays --------------------------------------------
         when (state.applyPhase) {
             GfxApplyPhase.Optimizing -> ApplyOverlay {
                 CircularProgressIndicator(
@@ -310,16 +247,7 @@ fun GfxScreen(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(18.dp))
-                Text(
-                    "Optimizing…",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Injecting kuBooster configuration",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("Boosting…", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
             }
             GfxApplyPhase.Success -> ApplyOverlay {
                 Icon(
@@ -329,10 +257,7 @@ fun GfxScreen(
                     modifier = Modifier.size(56.dp),
                 )
                 Spacer(Modifier.height(18.dp))
-                Text(
-                    "Success!",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                )
+                Text("Boosted!", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Launching game…",
@@ -349,7 +274,6 @@ fun GfxScreen(
             fps = state.fpsTarget,
             presetLabel = presetLabelOf(state.presetKey),
             resolutionLabel = resolutionLabel(state.resolutionKey),
-            hasBackup = state.hasBackup,
             onConfirm = {
                 showConfirm = false
                 onApply()
@@ -359,9 +283,446 @@ fun GfxScreen(
     }
 }
 
+private val PRESETS = listOf("supersmooth", "smooth", "balanced", "hd", "hdr", "ultrahdr")
+
+// ---- Header & status ---------------------------------------------------------
+
+@Composable
+private fun Header(isDark: Boolean, onToggleTheme: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("kuBooster", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
+        Spacer(Modifier.width(6.dp))
+        Box(
+            Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Speed,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onToggleTheme),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                contentDescription = if (isDark) "Switch to light mode" else "Switch to dark mode",
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+/**
+ * Hero: device + Shizuku status, and — once the game's save is read — what
+ * the game will actually run, as two large stats.
+ */
+@Composable
+private fun HeroCard(state: GfxUiState, loaded: GfxFileStatus.Loaded?) {
+    val ready = state.shizukuReady
+    val accent = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val device = remember {
+        val soc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MODEL else Build.HARDWARE
+        "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL} · $soc"
+    }
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(accent.copy(alpha = 0.16f), accent.copy(alpha = 0.04f)),
+                ),
+            )
+            .border(1.dp, accent.copy(alpha = 0.35f), shape)
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(accent.copy(alpha = 0.20f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Memory, contentDescription = null, tint = accent)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when {
+                        ready -> "Device Ready"
+                        state.shizukuInstalled -> "Shizuku permission needed"
+                        else -> "Shizuku not installed"
+                    },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                )
+                Text(device, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Box(
+                Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(accent),
+            )
+        }
+        if (loaded != null) {
+            val fpsLevel = loaded.saveFpsLevels?.get("BattleFPS") ?: loaded.saveFpsLevels?.values?.firstOrNull()
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "IN GAME NOW",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Stat(
+                    value = fpsLevel?.let { levelFps(it) } ?: "—",
+                    unit = if (fpsLevel != null && levelFps(fpsLevel) != "—") "FPS" else "",
+                    caption = fpsLevel?.let(ActiveSavEditor::levelLabel)?.substringBefore(" (") ?: "Open the game once",
+                    modifier = Modifier.weight(1f),
+                )
+                Stat(
+                    value = loaded.saveQuality?.let(ActiveSavEditor::qualityLabel) ?: "—",
+                    unit = "",
+                    caption = "Graphics",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stat(value: String, unit: String, caption: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1,
+            )
+            if (unit.isNotEmpty()) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    unit,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+            }
+        }
+        Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Game frame-rate level -> the number it stands for. */
+private fun levelFps(level: Int): String = when (level) {
+    2 -> "20"
+    3 -> "25"
+    4 -> "30"
+    5 -> "40"
+    6 -> "60"
+    7 -> "90"
+    8 -> "120"
+    else -> "—"
+}
+
+// ---- Setting cards -----------------------------------------------------------
+
+@Composable
+private fun SettingCard(
+    icon: ImageVector,
+    title: String,
+    trailing: @Composable () -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    KubeCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CardIcon(icon)
+            Spacer(Modifier.width(10.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            trailing()
+        }
+        Spacer(Modifier.height(14.dp))
+        content()
+    }
+}
+
+@Composable
+private fun CardIcon(icon: ImageVector) {
+    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
+}
+
+@Composable
+private fun ResolutionCard(selectedKey: String, onSelect: (String) -> Unit) {
+    val keys = GfxConfigEditor.RESOLUTION_KEYS
+    val index = keys.indexOf(selectedKey).coerceAtLeast(0)
+    SettingCard(
+        icon = Icons.Filled.AspectRatio,
+        title = "Resolution",
+        trailing = {
+            Text(
+                resolutionLabel(selectedKey),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        },
+    ) {
+        Slider(
+            value = index.toFloat(),
+            onValueChange = { onSelect(keys[it.roundToInt().coerceIn(0, keys.lastIndex)]) },
+            valueRange = 0f..keys.lastIndex.toFloat(),
+            steps = keys.size - 2,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            ),
+        )
+        Row(Modifier.fillMaxWidth()) {
+            keys.forEachIndexed { i, key ->
+                Text(
+                    resolutionLabel(key),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (i == index) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = when (i) {
+                        0 -> TextAlign.Start
+                        keys.lastIndex -> TextAlign.End
+                        else -> TextAlign.Center
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Equal-width segmented control on a recessed track; the selected segment
+ * is a solid accent pill (game version, frame rate).
+ */
+@Composable
+private fun <T> Segmented(options: List<Pair<T, String>>, selected: T?, onSelect: (T) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        options.forEach { (value, label) ->
+            SelectableTile(label, value == selected, Modifier.weight(1f), RoundedCornerShape(12.dp)) { onSelect(value) }
+        }
+    }
+}
+
+/** Even 3-column grid of tiles (graphics quality). */
+@Composable
+private fun <T> TileGrid(options: List<Pair<T, String>>, selected: T?, onSelect: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (value, label) ->
+                    SelectableTile(
+                        label,
+                        value == selected,
+                        Modifier
+                            .weight(1f)
+                            .border(
+                                1.dp,
+                                if (value == selected) androidx.compose.ui.graphics.Color.Transparent
+                                else MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(14.dp),
+                            ),
+                        RoundedCornerShape(14.dp),
+                    ) { onSelect(value) }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectableTile(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    shape: RoundedCornerShape,
+    onClick: () -> Unit,
+) {
+    val bg by androidx.compose.animation.animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent,
+        label = "tile",
+    )
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 10.dp),
+    )
+}
+
+@Composable
+private fun NoticeCard(text: String) {
+    KubeCard(Modifier.fillMaxWidth()) {
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ProblemCard(title: String, body: String, onRetry: () -> Unit) {
+    KubeCard(Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 10.dp)) { Text("Retry") }
+    }
+}
+
+// ---- Swipe to apply ----------------------------------------------------------
+
+/**
+ * Drag the round handle to the end to apply — a deliberate gesture so a
+ * stray tap never edits game files. Springs back if released early.
+ */
+@Composable
+private fun SwipeToApply(enabled: Boolean, onSwiped: () -> Unit) {
+    val handle = 56.dp
+    val shape = RoundedCornerShape(50)
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape),
+    ) {
+        val maxPx = with(LocalDensity.current) { (maxWidth - handle - 8.dp).toPx() }
+        var drag by remember { mutableFloatStateOf(0f) }
+        var dragging by remember { mutableStateOf(false) }
+        val shown by animateFloatAsState(if (dragging) drag else 0f, label = "swipe")
+        Row(
+            Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (enabled) "Swipe to Apply & Boost" else "Pick a frame rate first",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.5f),
+            )
+            if (enabled) {
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        Box(
+            Modifier
+                .padding(4.dp)
+                .offset { IntOffset((if (dragging) drag else shown).roundToInt(), 0) }
+                .size(handle)
+                .clip(CircleShape)
+                .background(
+                    if (enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+                .draggable(
+                    enabled = enabled,
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta -> drag = (drag + delta).coerceIn(0f, maxPx) },
+                    onDragStarted = { dragging = true },
+                    onDragStopped = {
+                        if (drag >= maxPx * 0.85f) onSwiped()
+                        dragging = false
+                        drag = 0f
+                    },
+                )
+                // Accessibility / tap fallback: a tap also opens the confirm step.
+                .clickable(enabled = enabled, onClickLabel = "Apply and boost", onClick = onSwiped),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.KeyboardDoubleArrowRight,
+                contentDescription = "Swipe to apply",
+                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ---- What the game uses now + restore ------------------------------------------
+
+/** Restore + Discard, shown only while a backup exists. */
+@Composable
+private fun BackupCard(state: GfxUiState, onRemoveGfx: () -> Unit, onDiscardBackup: () -> Unit) {
+    if (!state.hasBackup) return
+    KubeCard(Modifier.fillMaxWidth()) {
+        Text("Original settings saved", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "Restore puts back: ${state.restoreSummary ?: "original graphics config"}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Row(Modifier.padding(top = 4.dp)) {
+            TextButton(onClick = onRemoveGfx, enabled = !state.busy) {
+                Text("Restore", color = MaterialTheme.colorScheme.error)
+            }
+            if (state.restoreSummary != null) {
+                TextButton(onClick = onDiscardBackup, enabled = !state.busy) { Text("Discard backup") }
+            }
+        }
+    }
+}
+
 // ---- Diagnostic log --------------------------------------------------------
 
-/** Shows every GFX step (reads, writes, verify, Active.sav contents) with copy/share. */
 @Composable
 private fun GfxLogCard() {
     val lines by GfxLog.lines.collectAsState()
@@ -370,151 +731,59 @@ private fun GfxLogCard() {
     val context = LocalContext.current
     KubeCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Diagnostic log", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide" else "Show (${lines.size})") }
+            Column(Modifier.weight(1f)) {
+                Text("Diagnostic log", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Share this if something doesn't work.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide" else "Show") }
         }
-        Text(
-            "Share this if something doesn't work.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         if (expanded) {
             Text(
-                text = lines.takeLast(150).joinToString("\n").ifEmpty { "(empty — open or apply GFX first)" },
+                text = lines.takeLast(150).joinToString("\n").ifEmpty { "(empty)" },
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
                     .horizontalScroll(rememberScrollState()),
             )
-        }
-        Row(Modifier.padding(top = 6.dp)) {
-            TextButton(onClick = { clipboard.setText(AnnotatedString(GfxLog.text())) }) { Text("Copy") }
-            TextButton(onClick = {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, GfxLog.text())
-                context.startActivity(Intent.createChooser(send, "Share GFX log"))
-            }) { Text("Share") }
-            TextButton(onClick = { GfxLog.clear() }) { Text("Clear") }
+            Row {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(GfxLog.text())) }) { Text("Copy") }
+                TextButton(onClick = {
+                    val send = Intent(Intent.ACTION_SEND)
+                        .setType("text/plain")
+                        .putExtra(Intent.EXTRA_TEXT, GfxLog.text())
+                    context.startActivity(Intent.createChooser(send, "Share GFX log"))
+                }) { Text("Share") }
+                TextButton(onClick = { GfxLog.clear() }) { Text("Clear") }
+            }
         }
     }
 }
 
-// ---- Overlays ------------------------------------------------------------
+// ---- Overlays & dialogs ------------------------------------------------------
 
 @Composable
 private fun ApplyOverlay(content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim),
+            .background(MaterialTheme.colorScheme.scrim)
+            .clickable(enabled = false) {},
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            content()
-        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) { content() }
     }
 }
-
-// ---- Header helpers --------------------------------------------------------
-
-@Composable
-private fun ThemeToggleButton(isDark: Boolean, onToggleTheme: () -> Unit) {
-    val icon: ImageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
-            .clickable(onClick = onToggleTheme),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            icon,
-            contentDescription = if (isDark) "Switch to light mode" else "Switch to dark mode",
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-@Composable
-private fun ShizukuPill(state: GfxUiState) {
-    val (label, color) = when {
-        state.shizukuReady -> "Connected" to MaterialTheme.colorScheme.primary
-        state.shizukuInstalled -> "Needs grant" to MaterialTheme.colorScheme.secondary
-        else -> "No Shizuku" to MaterialTheme.colorScheme.error
-    }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = color,
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-    )
-}
-
-// ---- Current values ---------------------------------------------------------
-
-/**
- * What the game will use, read from its save (combat settings), in the
- * game's own names — plus Restore (shows exactly what it puts back) and
- * Discard for a bad backup.
- */
-@Composable
-private fun CurrentConfigCard(
-    status: GfxFileStatus.Loaded,
-    state: GfxUiState,
-    onRemoveGfx: () -> Unit,
-    onDiscardBackup: () -> Unit,
-) {
-    val fps = status.saveFpsLevels?.get("BattleFPS") ?: status.saveFpsLevels?.values?.firstOrNull()
-    KubeCard(Modifier.fillMaxWidth()) {
-        Text("In game now", style = MaterialTheme.typography.titleMedium)
-        InfoRow(
-            label = "Frame rate",
-            value = fps?.let(ActiveSavEditor::levelLabel)
-                ?: if (status.saveFpsLevels == null) "Open the game once" else "Not set",
-            valueColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        InfoRow(
-            label = "Graphics",
-            value = status.saveQuality?.let(ActiveSavEditor::qualityLabel) ?: "Not set",
-            valueColor = MaterialTheme.colorScheme.primary,
-        )
-        if (state.hasBackup) {
-            Text(
-                "Restore puts back: ${state.restoreSummary ?: "original graphics config"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            Row {
-                TextButton(onClick = onRemoveGfx, enabled = !state.busy) {
-                    Text("Restore", color = MaterialTheme.colorScheme.error)
-                }
-                if (state.restoreSummary != null) {
-                    TextButton(onClick = onDiscardBackup, enabled = !state.busy) { Text("Discard backup") }
-                }
-            }
-        }
-    }
-}
-
-// ---- Confirm dialog ----------------------------------------------------------
 
 @Composable
 private fun ApplyConfirmDialog(
     fps: Int?,
     presetLabel: String,
     resolutionLabel: String,
-    hasBackup: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -525,19 +794,11 @@ private fun ApplyConfirmDialog(
             InfoRow("Frame rate", fps?.let { "$it FPS" } ?: "—", modifier = Modifier.padding(top = 8.dp))
             InfoRow("Graphics", presetLabel)
             InfoRow("Resolution", resolutionLabel)
-            InfoRow(
-                "Backup",
-                if (hasBackup)
-                    "Default config already backed up — restorable any time"
-                else
-                    "Default config will be backed up before writing",
-                valueColor = MaterialTheme.colorScheme.primary,
-            )
             Text(
-                "This edits PUBG's UserCustom.ini config file. Modified configs are detectable by the game's security systems and accounts can be banned for it — this is the same category of change every GFX tool makes. KuBooster stores your original file and cannot guarantee any outcome; you use this at your own risk.",
-                style = MaterialTheme.typography.bodyMedium,
+                "This edits PUBG's settings files. Edited game files can be detected and accounts can be banned for it — the same risk as every GFX tool. Your originals are backed up, but no outcome is guaranteed.",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 10.dp, bottom = 8.dp),
+                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -571,7 +832,7 @@ private fun ShizukuMissingCard() {
     KubeCard(Modifier.fillMaxWidth()) {
         Text("Shizuku is required", style = MaterialTheme.typography.titleMedium)
         Text(
-            "GFX mode needs ADB-level file access to edit UserCustom.ini. The free Shizuku app provides it without root: install Shizuku, start it (wireless debugging works on Android 11+, no PC needed), and grant KuBooster access.",
+            "KuBooster needs Shizuku (free, no root) to edit the game's settings files. Install Shizuku, start it with wireless debugging, then reopen KuBooster.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -580,14 +841,11 @@ private fun ShizukuMissingCard() {
 }
 
 @Composable
-private fun ShizukuPermissionCard(
-    onRequest: () -> Unit,
-    onRefresh: () -> Unit,
-) {
+private fun ShizukuPermissionCard(onRequest: () -> Unit, onRefresh: () -> Unit) {
     KubeCard(Modifier.fillMaxWidth()) {
         Text("Grant KuBooster access", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Shizuku is running. Grant KuBooster permission to use it — one tap, no root.",
+            "Shizuku is running. Allow KuBooster to use it — one tap, no root.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
@@ -599,61 +857,11 @@ private fun ShizukuPermissionCard(
     }
 }
 
-// ---- Choice chip (per mockup: tinted selected, flat unselected) --------------
-
-@Composable
-private fun ChoiceChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(12.dp)
-    val borderColor = if (selected) MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.outlineVariant
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-            .border(1.dp, borderColor, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-            color = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-// ---- Small pieces ------------------------------------------------------------
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-        modifier = Modifier.padding(bottom = 10.dp),
-    )
-}
+// ---- Labels ------------------------------------------------------------------
 
 private fun resolutionLabel(key: String): String = when (key) {
     "default" -> "Default"
-    "720p" -> "720p"
-    "1080p" -> "1080p"
     else -> key
-}
-
-/** Chip label: the number plus the game's own frame-rate option name. */
-private fun fpsGameLabel(fps: Int): String = when (fps) {
-    60 -> "60 Extreme"
-    90 -> "90 Extreme+"
-    120 -> "120 Ultra Extreme"
-    else -> "$fps"
 }
 
 private fun presetLabelOf(key: String?): String = when (key) {
@@ -662,7 +870,8 @@ private fun presetLabelOf(key: String?): String = when (key) {
     "smooth" -> "Smooth"
     "balanced" -> "Balanced"
     "hd" -> "HD"
-    "ultrahdr" -> "Ultra HDR"
+    "hdr" -> "HDR"
+    "ultrahdr" -> "Ultra HD"
     else -> key
 }
 

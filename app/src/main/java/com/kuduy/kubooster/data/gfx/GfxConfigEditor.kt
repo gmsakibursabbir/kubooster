@@ -135,6 +135,29 @@ object GfxConfigEditor {
             "r.MobileNumDynamicPointLights" to "0.8",
             "r.MaxAnisotropy" to "8",
         ),
+        // HD with the HDR lighting pipeline (game level 5).
+        "hdr" to mapOf(
+            "r.UserQualitySetting" to "2",
+            "r.PUBGQualityLevel" to "2",
+            "r.PUBGMaxSupportQualityLevel" to "2",
+            "r.UserHDRSetting" to "3",
+            "r.PUBGLDR" to "1",
+            "r.ShadowQuality" to "2",
+            "r.Shadow.MaxCSMResolution" to "1080",
+            "r.Shadow.CSM.MaxMobileCascades" to "2",
+            "r.Shadow.DistanceScale" to "0.7",
+            "r.MobileContentScaleFactor" to "1.0",
+            "r.MobileSimpleShader" to "0",
+            "r.BloomQuality" to "1.0",
+            "r.DepthOfFieldQuality" to "0",
+            "r.LightShaftQuality" to "1.0",
+            "r.RefractionQuality" to "0",
+            "r.DetailMode" to "2",
+            "r.EmitterSpawnRateScale" to "1.0",
+            "r.ParticleLODBias" to "1",
+            "r.MobileNumDynamicPointLights" to "1.0",
+            "r.MaxAnisotropy" to "8",
+        ),
         // HDR pipeline with full lighting — for strong devices.
         "ultrahdr" to mapOf(
             "r.UserQualitySetting" to "2",
@@ -178,6 +201,13 @@ object GfxConfigEditor {
         "1080p" -> mapOf("r.MobileContentScaleFactor" to "1.0")
         else -> error("unknown resolution key: $key")
     }
+
+    /**
+     * Anti-aliasing: the standard UE4 mobile MSAA sample count (4 = on,
+     * 1 = off). Off by default — MSAA costs frame rate.
+     */
+    fun antiAliasingEntries(on: Boolean): Map<String, String> =
+        mapOf("r.MobileMSAA" to if (on) "4" else "1")
 
     /** Decoded key -> value for every `+CVars=` line; later occurrences win. */
     fun readCvars(content: String): Map<String, String> {

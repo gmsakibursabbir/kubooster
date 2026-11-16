@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kuduy.kubooster.core.designsystem.KubeCard
 import com.kuduy.kubooster.core.designsystem.StatusChip
-import com.kuduy.kubooster.ui.Routes
 
 /**
  * Four onboarding pages + a detection step. No permissions are requested here;

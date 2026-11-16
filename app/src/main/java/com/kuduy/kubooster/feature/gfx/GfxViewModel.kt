@@ -66,6 +66,8 @@ data class GfxUiState(
     val presetKey: String? = "supersmooth",
     /** Resolution tier: "default" | "720p" | "1080p". */
     val resolutionKey: String = "default",
+    /** MSAA on/off; off by default because it costs frame rate. */
+    val antiAliasing: Boolean = false,
     /** Drives the full-screen apply overlays. */
     val applyPhase: GfxApplyPhase = GfxApplyPhase.Idle,
 )
@@ -148,6 +150,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         _state.update { it.copy(resolutionKey = key) }
     }
 
+    fun setAntiAliasing(on: Boolean) = _state.update { it.copy(antiAliasing = on) }
+
     fun dismissApplyPhase() = _state.update { it.copy(applyPhase = GfxApplyPhase.Idle) }
 
     fun loadFile() {
@@ -200,6 +204,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                         GfxLog.log("UserCustom.ini: ${bytes.size} bytes, ${cvars.size} CVars, FPS keys ${cvars.filterKeys { it in GfxConfigEditor.MANAGED_FPS_KEYS }}")
                         val sav = engine.readSave(pkg)
                         logSave(pkg, sav)
+                        engine.scanFpsSettings(pkg).forEach(GfxLog::log)
                         val saveLevels = sav?.let { s ->
                             ActiveSavEditor.readFpsProperties(s).associate { it.name to it.value }
                         }
@@ -240,6 +245,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         values += GfxConfigEditor.fpsEntries(fps)
         presetKey?.let { values += GfxConfigEditor.GRAPHICS_PRESETS.getValue(it) }
         resolutionKey.takeIf { it != "default" }?.let { values += GfxConfigEditor.resolutionEntries(it) }
+        values += GfxConfigEditor.antiAliasingEntries(_state.value.antiAliasing)
         val presetLabel = presetLabel(presetKey)
         viewModelScope.launch {
             _state.update { it.copy(busy = true, message = null, applyPhase = GfxApplyPhase.Optimizing) }
@@ -474,6 +480,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
     private suspend fun restoreSaveValues(pkg: String, backup: ByteArray): Boolean {
         val original = ActiveSavEditor.managedValues(backup)
         val current = engine.readSave(pkg) ?: return engine.writeSaveVerified(pkg, backup)
+        // What the game left after playing: shows whether it kept or reset the unlock.
+        GfxLog.log("Active.sav before restore (as the game left it): ${ActiveSavEditor.managedValues(current)}")
         GfxLog.log("restoring Active.sav values: $original")
         return engine.writeSaveVerified(pkg, ActiveSavEditor.setValues(current, original))
     }
@@ -513,6 +521,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         "smooth" -> "Smooth"
         "balanced" -> "Balanced"
         "hd" -> "HD"
+        "hdr" -> "HDR"
         "ultrahdr" -> "Ultra HDR"
         else -> key
     }

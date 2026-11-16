@@ -143,6 +143,36 @@ class PubgGfxEngine(
         saveBackupFile(packageName).delete()
     }
 
+    /**
+     * Diagnostic: every .ini the game keeps under Saved/, with any line that
+     * mentions a frame-rate limit (encoded +CVars are decoded first). Used to
+     * find where a variant (e.g. PUBG Flash) caps FPS below what Active.sav
+     * asks for. Read-only.
+     */
+    suspend fun scanFpsSettings(packageName: String): List<String> = withContext(dispatchers.io) {
+        val saved = configPath(packageName).substringBefore("/Config/")
+        val found = shizuku.runShell("find '$saved' -maxdepth 4 -name '*.ini' 2>/dev/null")
+            ?: return@withContext listOf("scan: Shizuku call failed")
+        val files = String(found.stdout, Charsets.ISO_8859_1).lines()
+            .map { it.trim() }
+            .filter { it.endsWith(".ini") && '\'' !in it }
+            .take(25)
+        val fpsRe = Regex("fps|framerate|frame_rate|maxfps|vsync", RegexOption.IGNORE_CASE)
+        val out = mutableListOf("scan: ${files.size} .ini files under Saved/")
+        for (path in files) {
+            val bytes = readFile(path) ?: continue
+            val name = path.removePrefix("$saved/")
+            if (bytes.size > 300_000) { out += "  $name (${bytes.size} B, skipped)"; continue }
+            val text = String(bytes, Charsets.ISO_8859_1)
+            val hits = text.lineSequence().map { line ->
+                val v = line.substringAfter("+CVars=", "").trim()
+                if (v.isNotEmpty() && UserCustomCodec.isEncoded(v)) UserCustomCodec.decode(v) ?: line else line.trim()
+            }.filter { fpsRe.containsMatchIn(it) }.distinct().take(20).toList()
+            out += "  $name (${bytes.size} B): " + hits.joinToString(" | ").ifEmpty { "no FPS lines" }
+        }
+        out
+    }
+
     // ---- Display refresh-rate lock -------------------------------------
     //
     // A game asks Android for a refresh rate based on the highest frame rate

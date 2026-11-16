@@ -100,6 +100,7 @@ object ActiveSavEditor {
         "smooth" -> 2
         "balanced" -> 3
         "hd" -> 4
+        "hdr" -> 5
         "ultrahdr" -> 6
         else -> null
     }
