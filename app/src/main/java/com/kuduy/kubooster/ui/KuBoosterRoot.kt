@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -191,13 +192,31 @@ fun KuBoosterRoot(container: AppContainer) {
                 val vm: GfxViewModel = viewModel(factory = GfxViewModel.factory(container))
                 LaunchedEffect(Unit) { vm.refresh() }
                 val gfxState by vm.state.collectAsState()
+                val scope = rememberCoroutineScope()
+                val themeDarkOverride by container.userPreferences.themeDark.collectAsState(initial = null)
+                val systemDark = isSystemInDarkTheme()
+                val isDark = when (themeDarkOverride) {
+                    "dark" -> true
+                    "light" -> false
+                    else -> systemDark
+                }
                 GfxScreen(
                     state = gfxState,
+                    isDark = isDark,
+                    onToggleTheme = {
+                        scope.launch {
+                            container.userPreferences.setThemeDark(if (isDark) "light" else "dark")
+                        }
+                    },
                     onRefresh = { vm.refresh() },
                     onSelectTarget = { vm.selectTarget(it) },
+                    onSelectFps = { vm.selectFps(it) },
+                    onSelectPreset = { vm.selectPreset(it) },
+                    onSelectResolution = { vm.selectResolution(it) },
                     onRequestShizuku = { container.shizukuRepository.requestPermission() },
-                    onApplyFps = { vm.applyFps(it) },
-                    onRestore = { vm.restoreOriginal() },
+                    onApply = { vm.apply() },
+                    onRemoveGfx = { vm.removeGfx() },
+                    onDismissOverlay = { vm.dismissApplyPhase() },
                 )
             }
             composable(Routes.GRAPHICS) {

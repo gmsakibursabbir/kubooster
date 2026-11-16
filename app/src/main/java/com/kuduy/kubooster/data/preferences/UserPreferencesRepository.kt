@@ -29,6 +29,7 @@ class UserPreferencesRepository(private val context: Context) {
         val prioritizeThermal = booleanPreferencesKey("custom_thermal_priority")
         val selectedPreset = stringPreferencesKey("selected_preset")
         val themeFollowSystem = booleanPreferencesKey("theme_follow_system")
+        val themeDark = stringPreferencesKey("theme_dark")
         val selectedVariant = stringPreferencesKey("selected_game_variant")
         val updateCheckOnLaunch = booleanPreferencesKey("update_check_on_launch")
     }
@@ -65,6 +66,18 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun setThemeFollowSystem(value: Boolean) {
         context.userPreferencesDataStore.edit { it[Keys.themeFollowSystem] = value }
+    }
+
+    /**
+     * Explicit theme override from the in-app toggle: "dark" / "light",
+     * absent = follow the system. Takes precedence over themeFollowSystem.
+     */
+    val themeDark: Flow<String?> = context.userPreferencesDataStore.data.map { it[Keys.themeDark] }
+
+    suspend fun setThemeDark(value: String?) {
+        context.userPreferencesDataStore.edit {
+            if (value == null) it.remove(Keys.themeDark) else it[Keys.themeDark] = value
+        }
     }
 
     /** User-pinned game variant (GameVariant.name), or null for auto-detect. */

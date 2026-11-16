@@ -17,13 +17,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as KuBoosterApp).container
         setContent {
-            // Bug fix: the Settings toggle previously had no effect because the
-            // stored preference was never consulted here.
+            // Theme: explicit in-app toggle ("dark"/"light") wins; otherwise
+            // the stored follow-system preference decides.
             val followSystem by container.userPreferences.themeFollowSystem
                 .collectAsState(initial = true)
-            KuBoosterTheme(
-                darkTheme = if (followSystem) isSystemInDarkTheme() else false,
-            ) {
+            val themeDark by container.userPreferences.themeDark
+                .collectAsState(initial = null)
+            val systemDark = isSystemInDarkTheme()
+            val dark = when (themeDark) {
+                "dark" -> true
+                "light" -> false
+                else -> if (followSystem) systemDark else false
+            }
+            KuBoosterTheme(darkTheme = dark) {
                 KuBoosterRoot(container)
             }
         }

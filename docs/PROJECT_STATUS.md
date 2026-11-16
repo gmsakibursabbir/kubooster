@@ -1,6 +1,22 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.0 (GFX mode — real UserCustom.ini FPS unlock)**
+Last updated: 2026-11-16 · Build: **v1.1.2 (premium GFX screen per design mockups)**
+
+## v1.1.2 changes
+
+1. **GFX screen redesigned to the product mockups** — two-tone "kuBooster GFX" title, theme toggle button (moon/sun) in the header, "PRO OPTIMIZER" hero card, plain section rows (**Game Version / Resolution / Graphics / FPS Limit**) with brand-styled chips, and a full-width **Apply & Run Game** button that launches PUBG after a verified write.
+2. **Resolution setting added** — Default / 720p / 1080p (`r.MobileContentScaleFactor` 1.0 / 0.7; overrides the preset's own scale value when merged).
+3. **Apply overlays per mockup** — full-screen "Optimizing… / Injecting kuBooster configuration" spinner during the write and "Success! / Launching game…" with a backup reminder afterwards; failures surface as message cards.
+4. **Backup made explicit** — the confirm dialog shows the backup state ("will be backed up before writing" / "already backed up — restorable any time"), the backup is verified to exist before any write, and the success overlay repeats that removal/restore is one tap.
+5. **In-app theme toggle** — moon/sun button stores an explicit dark/light override ("dark"/"light" preference, absent = follow system); MainActivity honors it. Light-mode accent switched to blue per the light mockup.
+6. **README download button** — big "Download Latest APK" badge pointing at releases/latest; release badge bumped; "never modifies the game" wording updated to describe the two modes honestly.
+
+## v1.1.1 changes
+
+1. **Graphics presets in GFX mode** — alongside the frame-rate unlock, the GFX tab now offers the same tiers as the game's own menu: **Smooth / Balanced / HD / Ultra HDR**, plus "Game's own" (frame rate only). Preset values are standard UE4/PUBG quality CVars (`r.UserQualitySetting`, `r.ShadowQuality`, `r.MobileContentScaleFactor`, …); "Balanced"/"HD" values come from the published reference corpus (a real game-written profile), Smooth is tuned to cut lag on weak devices, Ultra HDR enables the full HDR pipeline for strong devices. FPS + graphics are applied in one verified write.
+2. **Remove GFX settings (reset to default)** — a dedicated card writes the pristine backed-up `UserCustom.ini` back byte-exact, returning the game to its own default config.
+3. **"Current config" card fixed and extended** — shows the decoded frame-rate summary (big number), each FPS key, and the current graphics quality level read from the file. When PUBG has never written a key it says "not set / Game default" — that is the honest state, not a read failure (the game uses its built-in defaults for absent keys).
+4. **Light mode fixed** — the light color scheme was previously built on `darkColorScheme`, so card surfaces kept dark defaults in light mode. Rebuilt with `lightColorScheme` and full light container roles; status pills and warnings in GFX mode now use theme-aware colors instead of hardcoded dark-palette colors.
 
 ## v1.1.0 changes
 
@@ -78,7 +94,7 @@ Design stance change: previous versions refused game-file modification entirely.
 
 | Artifact | Status |
 |---|---|
-| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **2.03 MB** (v1.1.0); `apksigner verify` passes |
+| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **v1.1.1**; `apksigner verify` passes |
 
 Signing: keystore password mismatch in `keystore.properties` was the only release-build blocker; corrected against the keystore note copy kept outside the repository (`J:\devtools\kubooster-keystore-note.txt`).
 

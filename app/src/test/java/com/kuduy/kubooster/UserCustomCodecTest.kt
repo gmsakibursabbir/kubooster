@@ -173,4 +173,58 @@ class GfxConfigEditorTest {
             // pass
         }
     }
+
+    @Test
+    fun `applyCvars handles fps and graphics keys together`() {
+        val combined = GfxConfigEditor.fpsEntries(90) +
+            GfxConfigEditor.GRAPHICS_PRESETS.getValue("smooth")
+        val edited = GfxConfigEditor.applyCvars(sampleContent(), combined)
+        val cvars = GfxConfigEditor.readCvars(edited)
+        GfxConfigEditor.MANAGED_FPS_KEYS.forEach { key ->
+            assertEquals("90", cvars[key])
+        }
+        assertEquals("0", cvars["r.UserQualitySetting"])
+        assertEquals("1", cvars["r.MobileSimpleShader"])
+        assertEquals("0.7", cvars["r.MobileContentScaleFactor"])
+        assertEquals("0", cvars["r.PUBGMaxSupportQualityLevel"])
+    }
+
+    @Test
+    fun `every graphics preset round-trips through encode and decode`() {
+        GfxConfigEditor.GRAPHICS_PRESETS.forEach { (name, values) ->
+            val edited = GfxConfigEditor.applyCvars("", values)
+            val read = GfxConfigEditor.readCvars(edited)
+            values.forEach { (key, value) ->
+                assertEquals("$name/$key", value, read[key])
+            }
+        }
+    }
+
+    @Test
+    fun `resolution entries map to scale factors`() {
+        assertTrue(GfxConfigEditor.resolutionEntries("default").isEmpty())
+        assertEquals(
+            "0.7",
+            GfxConfigEditor.resolutionEntries("720p")["r.MobileContentScaleFactor"],
+        )
+        assertEquals(
+            "1.0",
+            GfxConfigEditor.resolutionEntries("1080p")["r.MobileContentScaleFactor"],
+        )
+        // Resolution overrides the preset's own scale value when merged last.
+        val combined = GfxConfigEditor.GRAPHICS_PRESETS.getValue("hd") +
+            GfxConfigEditor.resolutionEntries("720p")
+        val edited = GfxConfigEditor.applyCvars(sampleContent(), combined)
+        assertEquals("0.7", GfxConfigEditor.readCvars(edited)["r.MobileContentScaleFactor"])
+    }
+
+    @Test
+    fun `blank keys or values are rejected`() {
+        try {
+            GfxConfigEditor.applyCvars("x", mapOf(" " to "1"))
+            throw AssertionError("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+            // pass
+        }
+    }
 }

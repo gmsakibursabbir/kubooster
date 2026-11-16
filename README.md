@@ -8,13 +8,16 @@
 
 *A lightweight, honest Android gaming performance companion for PUBG Mobile — by KUDUY*
 
-[![Release](https://img.shields.io/badge/release-v1.0.3-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
+[![Download APK](https://img.shields.io/badge/⬇_Download_Latest_APK-0163FA?style=for-the-badge&logo=android&logoColor=white)](https://github.com/gmsakibursabbir/kubooster/releases/latest)
+
+<br/>
+
+[![Release](https://img.shields.io/badge/release-v1.1.2-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Target](https://img.shields.io/badge/target-Android%2014-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Size](https://img.shields.io/badge/APK-~2%20MB-0163FA?style=flat-square)](https://github.com/gmsakibursabbir/kubooster/releases)
 [![No Ads](https://img.shields.io/badge/ads-none-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
 [![Network](https://img.shields.io/badge/network-github.com%20only-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
-[![Game mods](https://img.shields.io/badge/game%20files-never%20touched-6BE6A8?style=flat-square)](#-safety--anti-ban-policy)
 
 </div>
 
@@ -24,12 +27,13 @@
 
 KuBooster reads your device's **real** capabilities through public Android APIs, checks which PUBG Mobile variants are installed and at what version, recommends FPS targets and graphics presets that genuinely fit your hardware, and applies a small set of **reversible, user-confirmed system settings**.
 
-It is built on one non-negotiable principle: **it never shows you a number it cannot verify, and it never modifies the game.**
+It is built on one non-negotiable principle: **it never shows you a number it cannot verify.** Safe-mode features touch only reversible Android system settings. GFX mode (opt-in) edits PUBG's `UserCustom.ini` — the same change every GFX tool makes — always with an automatic, restorable backup and an explicit risk warning.
 
 - ✅ Real device intelligence — CPU, GPU, RAM, display modes, thermal, battery
 - ✅ Real game detection — 5 PUBG Mobile variants, exact version comparison
+- ✅ Real FPS + graphics unlock — GFX mode with byte-exact backup and restore
 - ✅ Real, reversible optimization — verified by read-back, restorable anytime
-- 🚫 No fake "RAM cleaned: 2 GB" theater, no fake FPS promises, no game file edits
+- 🚫 No fake "RAM cleaned: 2 GB" theater, no fake FPS promises
 
 ## ✨ Features
 
@@ -42,7 +46,7 @@ It is built on one non-negotiable principle: **it never shows you a number it ca
 | ↩️ | **One-tap Restore** | Every change is journaled with its *original* value. Restore one change or all — always back to exactly what was there before. |
 | 🎨 | **Graphics Presets** | Smooth Performance / Balanced / High Quality, tailored to your RAM tier and thermal state — applied by you inside PUBG's own settings menu. |
 | ⚡ | **Shizuku (optional)** | Grants `WRITE_SECURE_SETTINGS` for battery-saver & animation controls via two compile-time-fixed commands. Every core feature works without it. |
-| 🛠️ | **GFX mode (UserCustom.ini editor)** | The real FPS unlock: reads PUBG's `UserCustom.ini` through Shizuku (no root), sets the game's frame-rate keys (`r.PUBGDeviceFPS*`) to 30/60/90/120, verifies the write byte-exact, and keeps an automatic restorable backup. Works with PUBG Mobile **and** PUBG Mobile Flash. |
+| 🛠️ | **GFX mode (UserCustom.ini editor)** | The real FPS + graphics unlock: reads PUBG's `UserCustom.ini` through Shizuku (no root), sets frame rate (30/60/90/120) **and** graphics tier (Smooth / Balanced / HD / Ultra HDR), verifies the write byte-exact, keeps an automatic restorable backup, and one-tap resets everything back to the game's default. Works with PUBG Mobile **and** PUBG Mobile Flash. |
 | 🎯 | **Game variant pinning** | Choose which PUBG Mobile flavor (Global / Flash / KR / VN / BGMI) the app targets, or leave it on Auto-detect. FPS & graphics guidance follow your pick. |
 | 🔄 | **In-app updates** | Checks the official GitHub Releases for newer versions (toggle in Settings) and downloads the signed APK from `github.com` only. No analytics, no other servers. |
 
@@ -97,13 +101,14 @@ This is the feature that makes KuBooster a real GFX tool. It edits PUBG's own co
 
 1. **Install & start [Shizuku](https://shizuku.rikka.app)** — free, no root. On Android 11+ you can start it via wireless debugging on the phone itself (no PC).
 2. Open the **GFX** tab, pick your game (Global / Flash / KR / VN / BGMI).
-3. KuBooster reads `Android/data/<pkg>/files/UE4Game/ShadowTrackerExtra/ShadowTrackerExtra/Saved/Config/Android/UserCustom.ini` through Shizuku and shows the game's current frame-rate keys, decoded.
-4. Pick **30 / 60 / 90 / 120 FPS**, read the warning, check *"I understand the risk"*, tap **Apply**.
-5. The file is written through Shizuku and **verified by reading it back**. The untouched original is backed up in the app's private storage.
-6. Fully close PUBG (also from Recent apps), start it, and pick the new frame rate in the game's own graphics settings.
-7. **Restore original config** — one tap puts the pristine file back, byte-exact.
+3. KuBooster reads `Android/data/<pkg>/files/UE4Game/ShadowTrackerExtra/ShadowTrackerExtra/Saved/Config/Android/UserCustom.ini` through Shizuku and shows the game's **current frame-rate and graphics values**, decoded. Keys the game has never written show as *not set* — that's the game running on its own built-in defaults, not a read failure.
+4. Pick **30 / 60 / 90 / 120 FPS** and optionally a graphics preset — **Smooth** (fewest effects, least lag on weak devices), **Balanced**, **HD**, **Ultra HDR**, or "Game's own" (frame rate only).
+5. Read the warning, check *"I understand the risk"*, tap **Apply**.
+6. The file is written through Shizuku and **verified by reading it back**. The untouched original is backed up in the app's private storage.
+7. Fully close PUBG (also from Recent apps), start it, and pick the new options in the game's own settings.
+8. **Remove GFX settings** — one tap writes the pristine file back byte-exact and everything returns to the game's default.
 
-Technical detail: the `+CVars` values in `UserCustom.ini` are hex-encoded XOR-0x79; KuBooster decodes and re-encodes them natively (unit-tested against the published reference corpus), sets `r.PUBGDeviceFPSLow/Mid/High/HDR/UltraHDR` to your target, and leaves every other byte of the file untouched. Game updates can regenerate the file — apply again if a game update resets your FPS.
+Technical detail: the `+CVars` values in `UserCustom.ini` are hex-encoded XOR-0x79; KuBooster decodes and re-encodes them natively (unit-tested against the published reference corpus), sets `r.PUBGDeviceFPSLow/Mid/High/HDR/UltraHDR` plus — when a preset is chosen — the standard quality CVars (`r.UserQualitySetting`, `r.ShadowQuality`, `r.MobileContentScaleFactor`, …), and leaves every other byte of the file untouched. Game updates can regenerate the file — apply again if needed.
 
 ## 🔐 Safety & Anti-Ban Policy
 

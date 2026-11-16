@@ -18,8 +18,9 @@ import kotlinx.coroutines.launch
 sealed interface GfxFileStatus {
     data object Idle : GfxFileStatus
     data object Loading : GfxFileStatus
-    /** File found and decoded; map holds the managed FPS keys' current values. */
+    /** File found and decoded; all CVar keys' current values are available. */
     data class Loaded(
+        val cvars: Map<String, String>,
         val fpsValues: Map<String, String>,
         val configPath: String,
     ) : GfxFileStatus
@@ -48,7 +49,17 @@ data class GfxUiState(
     val hasBackup: Boolean = false,
     val gameRunning: Boolean? = null,
     val message: String? = null,
+    /** Frame rate chosen in the UI (null = nothing chosen yet). */
+    val fpsTarget: Int? = null,
+    /** Graphics preset key from [GfxConfigEditor.GRAPHICS_PRESETS]; null = keep the game's own graphics. */
+    val presetKey: String? = null,
+    /** Resolution tier: "default" | "720p" | "1080p". */
+    val resolutionKey: String = "default",
+    /** Drives the full-screen apply overlays. */
+    val applyPhase: GfxApplyPhase = GfxApplyPhase.Idle,
 )
+
+enum class GfxApplyPhase { Idle, Optimizing, Success, Failed }
 
 /**
  * GFX mode: the real UserCustom.ini editor.
@@ -114,6 +125,20 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         loadFile()
     }
 
+    fun selectFps(fps: Int) = _state.update { it.copy(fpsTarget = fps) }
+
+    fun selectPreset(key: String?) {
+        require(key == null || key in GfxConfigEditor.GRAPHICS_PRESETS) { "unknown preset: $key" }
+        _state.update { it.copy(presetKey = key) }
+    }
+
+    fun selectResolution(key: String) {
+        require(key in GfxConfigEditor.RESOLUTION_KEYS) { "unknown resolution: $key" }
+        _state.update { it.copy(resolutionKey = key) }
+    }
+
+    fun dismissApplyPhase() = _state.update { it.copy(applyPhase = GfxApplyPhase.Idle) }
+
     fun loadFile() {
         val pkg = _state.value.selectedPackage ?: return
         viewModelScope.launch {
@@ -156,10 +181,14 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                         _state.update { it.copy(status = GfxFileStatus.Unavailable("Could not read UserCustom.ini through Shizuku.")) }
                     } else {
                         val content = String(bytes, Charsets.ISO_8859_1)
+                        val cvars = GfxConfigEditor.readCvars(content)
                         _state.update {
                             it.copy(
                                 status = GfxFileStatus.Loaded(
-                                    fpsValues = GfxConfigEditor.readFpsValues(content),
+                                    cvars = cvars,
+                                    fpsValues = cvars.filterKeys { key ->
+                                        key in GfxConfigEditor.MANAGED_FPS_KEYS
+                                    },
                                     configPath = engine.configPath(pkg),
                                 ),
                             )
@@ -170,17 +199,30 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** [fps] comes from the fixed set offered in the UI (30/60/90/120). */
-    fun applyFps(fps: Int) {
+    /**
+     * Applies the chosen frame rate, graphics preset and resolution in one
+     * verified write. The default config is always backed up BEFORE the
+     * first modification; the write only happens after the backup exists.
+     */
+    fun apply() {
         val pkg = _state.value.selectedPackage ?: return
+        val fps = _state.value.fpsTarget ?: return
+        val presetKey = _state.value.presetKey
+        val resolutionKey = _state.value.resolutionKey
+        val values = mutableMapOf<String, String>()
+        values += GfxConfigEditor.fpsEntries(fps)
+        presetKey?.let { values += GfxConfigEditor.GRAPHICS_PRESETS.getValue(it) }
+        resolutionKey.takeIf { it != "default" }?.let { values += GfxConfigEditor.resolutionEntries(it) }
+        val presetLabel = presetLabel(presetKey)
         viewModelScope.launch {
-            _state.update { it.copy(busy = true, message = null) }
+            _state.update { it.copy(busy = true, message = null, applyPhase = GfxApplyPhase.Optimizing) }
             val running = engine.isGameRunning(pkg)
             _state.update { it.copy(gameRunning = running) }
             if (running == true) {
                 _state.update {
                     it.copy(
                         busy = false,
+                        applyPhase = GfxApplyPhase.Failed,
                         message = "PUBG is running. Close it completely (also from Recent apps) — the game rewrites this file on exit — then apply again.",
                     )
                 }
@@ -188,27 +230,45 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             }
             val original = engine.readConfig(pkg)
             if (original == null) {
-                _state.update { it.copy(busy = false, message = "Could not read UserCustom.ini. Nothing was changed.") }
+                _state.update { it.copy(busy = false, applyPhase = GfxApplyPhase.Failed, message = "Could not read UserCustom.ini. Nothing was changed.") }
                 return@launch
             }
-            // Automatic, byte-exact backup before the first modification.
+            // The default config is backed up BEFORE anything is written —
+            // guaranteed order, so a restore is always possible afterwards.
             if (!engine.backupExists(pkg)) engine.storeBackup(pkg, original)
+            if (!engine.backupExists(pkg)) {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        applyPhase = GfxApplyPhase.Failed,
+                        message = "Could not create the backup — nothing was changed.",
+                    )
+                }
+                return@launch
+            }
             val content = String(original, Charsets.ISO_8859_1)
-            val edited = GfxConfigEditor.applyFps(content, fps)
+            val edited = GfxConfigEditor.applyCvars(content, values)
             val ok = engine.writeConfigVerified(pkg, edited.toByteArray(Charsets.ISO_8859_1))
             if (ok) {
                 _state.update {
                     it.copy(
                         busy = false,
                         hasBackup = true,
-                        message = "Applied & verified: frame-rate keys set to $fps. Start the game and pick the new frame rate in its own graphics settings.",
+                        applyPhase = GfxApplyPhase.Success,
+                        message = buildString {
+                            append("Applied & verified: frame rate $fps")
+                            if (presetKey != null) append(", graphics $presetLabel")
+                            if (resolutionKey != "default") append(", resolution $resolutionKey")
+                            append(". Default config is backed up and restorable any time.")
+                        },
                     )
                 }
-                loadFile()
+                launchGame(pkg)
             } else {
                 _state.update {
                     it.copy(
                         busy = false,
+                        applyPhase = GfxApplyPhase.Failed,
                         message = "The write failed verification — the file was left as it was. Check that Shizuku is running and retry.",
                     )
                 }
@@ -216,7 +276,20 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun restoreOriginal() {
+    /** Opens the selected game after a successful apply ("Apply & Run Game"). */
+    private fun launchGame(packageName: String) {
+        try {
+            container.appContext.packageManager
+                .getLaunchIntentForPackage(packageName)
+                ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                ?.let { container.appContext.startActivity(it) }
+        } catch (_: Exception) {
+            // Launching is a convenience; the config change already succeeded.
+        }
+    }
+
+    /** Removes GFX settings: writes the pristine original file back (default state). */
+    fun removeGfx() {
         val pkg = _state.value.selectedPackage ?: return
         viewModelScope.launch {
             _state.update { it.copy(busy = true, message = null) }
@@ -224,21 +297,24 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             _state.update { it.copy(gameRunning = running) }
             if (running == true) {
                 _state.update {
-                    it.copy(busy = false, message = "Close PUBG completely first, then restore.")
+                    it.copy(busy = false, message = "Close PUBG completely first, then remove.")
                 }
                 return@launch
             }
             val backup = engine.backupBytes(pkg)
             if (backup == null) {
-                _state.update { it.copy(busy = false, message = "No backup stored yet.") }
+                _state.update { it.copy(busy = false, message = "No backup stored yet — the config was never modified.") }
                 return@launch
             }
             val ok = engine.writeConfigVerified(pkg, backup)
             _state.update {
                 it.copy(
                     busy = false,
-                    message = if (ok) "Original UserCustom.ini restored byte-exact."
-                    else "Restore failed — the file was left unchanged. Try again with Shizuku running.",
+                    message = if (ok) {
+                        "GFX settings removed — UserCustom.ini is back to its original, default state."
+                    } else {
+                        "Remove failed — the file was left unchanged. Try again with Shizuku running."
+                    },
                 )
             }
             if (ok) loadFile()
@@ -246,6 +322,15 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun clearMessage() = _state.update { it.copy(message = null) }
+
+    fun presetLabel(key: String?): String = when (key) {
+        null -> "game's own"
+        "smooth" -> "Smooth"
+        "balanced" -> "Balanced"
+        "hd" -> "HD"
+        "ultrahdr" -> "Ultra HDR"
+        else -> key
+    }
 
     companion object {
         fun factory(container: AppContainer) = object : ViewModelProvider.Factory {
