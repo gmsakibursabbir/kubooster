@@ -40,15 +40,17 @@ Last updated: 2026-11-16 · Build: **debug APK + signed release APK produced**
 
 ### Phase 10/11 — Testing & Release
 - 20 JVM unit tests, all passing (`:app:testDebugUnitTest`).
-- Release keystore generated; R8 signed release APK built.
+- Release keystore verified (`keytool -list`); R8 signed release APK built (1.65 MB) and signature verified with `apksigner`.
 - Unslopovich detector scan run; 3 false positives verified and suppressed with justification.
 
 ## Build artifacts
 
 | Artifact | Status |
 |---|---|
-| `app/build/outputs/apk/debug/app-debug.apk` | Built (17.3 MB, unminified) |
-| `app/build/outputs/apk/release/app-release.apk` | Signed, R8-processed (see build log) |
+| `app/build/outputs/apk/debug/app-debug.apk` | Built — 17.33 MB (unminified) |
+| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **1.65 MB**; `apksigner verify` passes (SHA-256 `42d64127…70da`) |
+
+Signing: keystore password mismatch in `keystore.properties` was the only release-build blocker; corrected against the keystore note copy kept outside the repository (`J:\devtools\kubooster-keystore-note.txt`).
 
 ## Test results
 - JVM unit tests: 20/20 pass.
