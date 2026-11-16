@@ -307,9 +307,17 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 return@launch
             }
             val ok = engine.writeConfigVerified(pkg, backup)
+            if (ok) {
+                // The config is back to its default state: drop the backup so
+                // the "Remove GFX settings" card disappears (a stale backup
+                // would only suggest a restore is still pending). The next
+                // apply creates a fresh one automatically.
+                engine.deleteBackup(pkg)
+            }
             _state.update {
                 it.copy(
                     busy = false,
+                    hasBackup = if (ok) false else _state.value.hasBackup,
                     message = if (ok) {
                         "GFX settings removed — UserCustom.ini is back to its original, default state."
                     } else {
@@ -325,6 +333,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
 
     fun presetLabel(key: String?): String = when (key) {
         null -> "game's own"
+        "supersmooth" -> "Super Smooth"
         "smooth" -> "Smooth"
         "balanced" -> "Balanced"
         "hd" -> "HD"

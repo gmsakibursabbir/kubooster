@@ -32,13 +32,42 @@ object GfxConfigEditor {
         "r.PUBGDeviceFPSHigh",
         "r.PUBGDeviceFPSHDR",
         "r.PUBGDeviceFPSUltraHDR",
+        // Newer game versions cap the frame rate through this key as well;
+        // older ones simply ignore it. Harmless to always set.
+        "r.PUBGMobileFrameRate",
     )
 
     /** Graphics presets, in the order offered in the UI. */
     val GRAPHICS_PRESETS: Map<String, Map<String, String>> = mapOf(
-        // Fastest: minimal shadows/effects/particles — tuned to avoid lag on
-        // weak devices. Resolution scale stays at 0.7 (not lower) so the game
-        // stays readable.
+        // Lightest tuning, styled after PUBG Flash's exclusive "Super Smooth"
+        // tier: everything optional off, minimal streaming/shadows, lowest
+        // readable resolution scale. For the weakest devices and highest FPS.
+        "supersmooth" to mapOf(
+            "r.UserQualitySetting" to "0",
+            "r.PUBGQualityLevel" to "0",
+            "r.PUBGMaxSupportQualityLevel" to "0",
+            "r.UserHDRSetting" to "1",
+            "r.PUBGLDR" to "0",
+            "r.ShadowQuality" to "0",
+            "r.Shadow.MaxCSMResolution" to "512",
+            "r.Shadow.CSM.MaxMobileCascades" to "1",
+            "r.Shadow.DistanceScale" to "0.1",
+            "r.MobileContentScaleFactor" to "0.6",
+            "r.MobileSimpleShader" to "1",
+            "r.BloomQuality" to "0",
+            "r.DepthOfFieldQuality" to "0",
+            "r.LightShaftQuality" to "0",
+            "r.RefractionQuality" to "0",
+            "r.DetailMode" to "0",
+            "r.EmitterSpawnRateScale" to "0",
+            "r.ParticleLODBias" to "2",
+            "r.MobileNumDynamicPointLights" to "0",
+            "r.MaxAnisotropy" to "1",
+            "r.Streaming.PoolSize" to "200",
+        ),
+        // Fastest standard: minimal shadows/effects/particles — tuned to avoid
+        // lag on weak devices. Resolution scale stays at 0.7 (not lower) so the
+        // game stays readable.
         "smooth" to mapOf(
             "r.UserQualitySetting" to "0",
             "r.PUBGQualityLevel" to "0",
@@ -180,9 +209,11 @@ object GfxConfigEditor {
 
     /**
      * Sets every key in [values] to its given value (replacing existing lines
-     * in place, appending missing ones after the last `+CVars=` line, or at
-     * the end of the file). Callers pass [fpsEntries] for the frame-rate
-     * unlock and/or a preset from [GRAPHICS_PRESETS] for graphics quality.
+     * in place). Missing keys are inserted inside the `[UserCustom
+     * DeviceProfile]` section — the device profile the game actually applies —
+     * never blindly at the end of the file where a different section's keys
+     * live (there the game would ignore them, and the unlock would silently
+     * do nothing). If the file has no such section, it is created at the end.
      * Line endings of the original file are preserved.
      */
     fun applyCvars(content: String, values: Map<String, String>): String {
@@ -193,14 +224,25 @@ object GfxConfigEditor {
         val lines = content.split("\r\n", "\n")
         val managed = values.keys.toSet()
         val replaced = mutableSetOf<String>()
-        var lastCvarsIndex = -1
 
-        val out = lines.mapIndexed { index, raw ->
+        // Locate the [UserCustom DeviceProfile] section: its header index and
+        // the index of the first line after it that starts another section.
+        var sectionHeader = -1
+        var sectionEnd = lines.size
+        val headerRe = Regex("^\\s*\\[\\s*UserCustom\\s+DeviceProfile\\s*\\]\\s*$", RegexOption.IGNORE_CASE)
+        val anyHeaderRe = Regex("^\\s*\\[.*\\]\\s*$")
+        lines.forEachIndexed { index, raw ->
+            if (headerRe.matches(raw)) sectionHeader = index
+            else if (sectionHeader >= 0 && index > sectionHeader && anyHeaderRe.matches(raw) && sectionEnd == lines.size) {
+                sectionEnd = index
+            }
+        }
+
+        val out = lines.mapIndexed { _, raw ->
             val match = CVALS_LINE.find(raw)
             if (match == null) {
                 raw
             } else {
-                lastCvarsIndex = index
                 val prefix = match.groupValues[1]
                 val rawValue = match.groupValues[2].trim()
                 val decoded = if (UserCustomCodec.isEncoded(rawValue)) {
@@ -221,11 +263,25 @@ object GfxConfigEditor {
 
         val missing = values.keys.filterNot { it in replaced }
         if (missing.isNotEmpty()) {
-            val insertAt = if (lastCvarsIndex >= 0) lastCvarsIndex + 1 else out.size
-            out.addAll(
-                insertAt,
-                missing.map { "+CVars=${UserCustomCodec.encode("$it=${values[it]}")}" },
-            )
+            val newLines = missing.map { "+CVars=${UserCustomCodec.encode("$it=${values[it]}")}" }
+            when {
+                // Append after the last existing cvar line of the target
+                // section (keeps the block together and inside the section).
+                sectionHeader >= 0 -> {
+                    var insertAt = sectionHeader + 1
+                    for (i in sectionHeader + 1 until sectionEnd) {
+                        if (CVALS_LINE.matches(out[i])) insertAt = i + 1
+                    }
+                    out.addAll(insertAt, newLines)
+                }
+                // No profile section at all — create one; a bare +CVars= line
+                // outside any section is ignored by the game's parser.
+                else -> {
+                    if (out.lastOrNull()?.isNotBlank() == true) out.add("")
+                    out.add("[UserCustom DeviceProfile]")
+                    out.addAll(newLines)
+                }
+            }
         }
         return out.joinToString(newline)
     }

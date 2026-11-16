@@ -216,6 +216,9 @@ fun GfxScreen(
                             }
                         }
                         is GfxFileStatus.Loaded -> {
+                            val selectedVariant = state.targets
+                                .firstOrNull { it.variant.packageName == state.selectedPackage }?.variant
+
                             // ---- Option sections (plain rows, per mockup) --
                             SectionLabel("Game Version")
                             Row(
@@ -259,6 +262,9 @@ fun GfxScreen(
                                     .horizontalScroll(rememberScrollState()),
                             ) {
                                 ChoiceChip("Default", state.presetKey == null, { onSelectPreset(null) })
+                                if (selectedVariant == GameVariant.FLASH) {
+                                    ChoiceChip("Super Smooth", state.presetKey == "supersmooth", { onSelectPreset("supersmooth") })
+                                }
                                 ChoiceChip("Smooth", state.presetKey == "smooth", { onSelectPreset("smooth") })
                                 ChoiceChip("Balanced", state.presetKey == "balanced", { onSelectPreset("balanced") })
                                 ChoiceChip("HD", state.presetKey == "hd", { onSelectPreset("hd") })
@@ -281,12 +287,18 @@ fun GfxScreen(
                             ) {
                                 listOf(30, 60, 90, 120).forEach { fps ->
                                     ChoiceChip(
-                                        label = "$fps",
+                                        label = fpsGameLabel(fps),
                                         selected = state.fpsTarget == fps,
                                         onClick = { onSelectFps(fps) },
                                     )
                                 }
                             }
+                            Text(
+                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. After applying, pick the matching option in the game's Frame Rate settings.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
 
                             Spacer(Modifier.height(22.dp))
 
@@ -548,10 +560,13 @@ private fun RemoveGfxCard(state: GfxUiState, onRemoveGfx: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
         )
-        OutlinedButton(
+        Button(
             onClick = onRemoveGfx,
             enabled = !state.busy,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ),
         ) {
             Text("Remove GFX settings")
         }
@@ -699,8 +714,17 @@ private fun resolutionLabel(key: String): String = when (key) {
     else -> key
 }
 
+/** Chip label: the number plus the game's own frame-rate option name. */
+private fun fpsGameLabel(fps: Int): String = when (fps) {
+    60 -> "60 Extreme"
+    90 -> "90 Extreme+"
+    120 -> "120 Ultra Extreme"
+    else -> "$fps"
+}
+
 private fun presetDescription(key: String?): String = when (key) {
     null -> "Leave graphics exactly as the game set them — only the frame rate changes."
+    "supersmooth" -> "Flash exclusive — lightest tuning, everything optional off. For weak devices and highest FPS."
     "smooth" -> "Fewest shadows and effects — least lag, best for weak devices and high FPS."
     "balanced" -> "Middle ground between visuals and performance."
     "hd" -> "Sharper visuals, more device load."
@@ -710,6 +734,7 @@ private fun presetDescription(key: String?): String = when (key) {
 
 private fun presetLabelOf(key: String?): String = when (key) {
     null -> "Game's own"
+    "supersmooth" -> "Super Smooth"
     "smooth" -> "Smooth"
     "balanced" -> "Balanced"
     "hd" -> "HD"

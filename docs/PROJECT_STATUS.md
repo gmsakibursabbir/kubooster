@@ -1,6 +1,14 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.2 (premium GFX screen per design mockups)**
+Last updated: 2026-11-16 · Build: **v1.1.3 (GFX correctness fixes: section-aware config writes, Super Smooth preset, remove-flow fix)**
+
+## v1.1.3 changes
+
+1. **GFX writes are now section-aware (root-cause fix for "FPS unlock not working")** — missing `+CVars=` keys are inserted inside the `[UserCustom DeviceProfile]` section (the device profile the game actually applies). Previously they were appended at the end of the file, landing in whatever section was last or outside any section — there the game's parser ignores them and the unlock silently did nothing. If the file has no profile section, one is created.
+2. **`r.PUBGMobileFrameRate` added to the FPS unlock** — newer game versions cap the frame rate through this key in addition to the five classic `r.PUBGDeviceFPS*` keys; older versions ignore it harmlessly.
+3. **Super Smooth preset added** (Flash exclusive, shown only for PUBG Flash) — lightest tuning: everything optional off, lowest readable resolution scale (0.6), shadows off, simple shader on.
+4. **Remove GFX flow fixed** — after a successful restore the backup is deleted and the "Remove GFX settings" card disappears (it previously stayed visible forever). The button is now solid red.
+5. Graphics presets round-trip tests cover all presets including Super Smooth; new tests assert section-aware insertion and section creation.
 
 ## v1.1.2 changes
 

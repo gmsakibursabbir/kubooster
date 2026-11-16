@@ -134,9 +134,57 @@ class GfxConfigEditorTest {
     }
 
     @Test
-    fun `empty file gets all five keys`() {
+    fun `empty file gets a device profile section with all fps keys`() {
         val edited = GfxConfigEditor.applyFps("", 60)
-        assertEquals(5, GfxConfigEditor.readFpsValues(edited).size)
+        // The section must be created — bare +CVars= lines outside any
+        // section are ignored by the game's parser.
+        assertTrue(edited.contains("[UserCustom DeviceProfile]"))
+        assertEquals(
+            GfxConfigEditor.MANAGED_FPS_KEYS.size,
+            GfxConfigEditor.readFpsValues(edited).size,
+        )
+    }
+
+    @Test
+    fun `missing keys are inserted into the device profile section`() {
+        val content = listOf(
+            "[UserCustom DeviceProfile]",
+            encoded("r.UserQualitySetting=1"),
+            "",
+            "[FansSwitcher]",
+            encoded("r.PUBGDeviceFPSUltraHDR=60"),
+        ).joinToString("\n")
+        val edited = GfxConfigEditor.applyFps(content, 120)
+        val lines = edited.lines()
+        val profileIndex = lines.indexOfFirst { it == "[UserCustom DeviceProfile]" }
+        val fansIndex = lines.indexOfFirst { it == "[FansSwitcher]" }
+        // Every new FPS key must land between the two section headers,
+        // not at the end of the file where [FansSwitcher] lives.
+        GfxConfigEditor.MANAGED_FPS_KEYS.filter { it != "r.PUBGDeviceFPSUltraHDR" }
+            .forEach { key ->
+                val lineIndex = lines.indexOfFirst { it.endsWith(UserCustomCodec.encode("$key=120")) }
+                assertTrue("missing line for $key", lineIndex >= 0)
+                assertTrue(
+                    "$key must be inside [UserCustom DeviceProfile]",
+                    lineIndex in (profileIndex + 1) until fansIndex,
+                )
+            }
+    }
+
+    @Test
+    fun `file without a profile section gets one created`() {
+        val content = listOf(
+            "[SomeOtherSection]",
+            encoded("r.UserQualitySetting=1"),
+        ).joinToString("\n")
+        val edited = GfxConfigEditor.applyFps(content, 90)
+        assertTrue(edited.contains("[UserCustom DeviceProfile]"))
+        assertEquals(
+            GfxConfigEditor.MANAGED_FPS_KEYS.size,
+            GfxConfigEditor.readFpsValues(edited).size,
+        )
+        // The original section survives untouched.
+        assertTrue(edited.contains("[SomeOtherSection]"))
     }
 
     @Test
@@ -148,7 +196,7 @@ class GfxConfigEditorTest {
         // substring "\n\r\n"; hence the lookbehind check, not plain contains.)
         assertTrue(edited.contains("\r\n"))
         assertFalse(Regex("(^|[^\r])\n").containsMatchIn(edited))
-        assertEquals(5, GfxConfigEditor.readFpsValues(edited).size)
+        assertEquals(GfxConfigEditor.MANAGED_FPS_KEYS.size, GfxConfigEditor.readFpsValues(edited).size)
     }
 
     @Test
@@ -198,6 +246,19 @@ class GfxConfigEditorTest {
                 assertEquals("$name/$key", value, read[key])
             }
         }
+    }
+
+    @Test
+    fun `super smooth is the lightest preset`() {
+        val superSmooth = GfxConfigEditor.GRAPHICS_PRESETS.getValue("supersmooth")
+        val smooth = GfxConfigEditor.GRAPHICS_PRESETS.getValue("smooth")
+        assertTrue(
+            "Super Smooth must use a lower resolution scale than Smooth",
+            superSmooth.getValue("r.MobileContentScaleFactor").toDouble() <
+                smooth.getValue("r.MobileContentScaleFactor").toDouble(),
+        )
+        assertEquals("0", superSmooth.getValue("r.ShadowQuality"))
+        assertEquals("1", superSmooth.getValue("r.MobileSimpleShader"))
     }
 
     @Test

@@ -95,4 +95,14 @@ class PubgGfxEngine(
     fun backupBytes(packageName: String): ByteArray? = backupFile(packageName).takeIf {
         it.exists()
     }?.readBytes()
+
+    /**
+     * Deletes the backup after a successful restore: the config is back to
+     * its default state, so keeping a stale backup would only make the UI
+     * claim a restore is still pending. The next apply creates a fresh one.
+     */
+    fun deleteBackup(packageName: String) {
+        backupFile(packageName).delete()
+        backupMetaFile(packageName).delete()
+    }
 }

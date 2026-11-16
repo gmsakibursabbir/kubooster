@@ -344,6 +344,12 @@ private fun UpdateBanner(
                     TextButton(onClick = { dismissed = true }) { Text("Hide") }
                 }
                 Spacer(Modifier.height(10.dp))
+                Text(
+                    "Note: when you install, Google Play Protect may show \"App scan recommended\". That dialog appears for every app installed outside the Play Store — it is not a problem with KuBooster. \"Scan app\" and \"Install without scanning\" are both fine to tap.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (latest?.apkUrl != null) {
                         Button(onClick = onDownload) { Text("Download update") }
@@ -376,7 +382,7 @@ private fun UpdateBanner(
             KubeCard(Modifier.fillMaxWidth()) {
                 Text("Update downloaded", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Downloaded from official GitHub. Android will ask you to confirm the installation.",
+                    "Downloaded from official GitHub. Android will ask you to confirm the installation. If Play Protect then shows \"App scan recommended\", it is the standard unknown-source prompt — \"Install without scanning\" proceeds normally.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
