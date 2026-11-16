@@ -15,3 +15,5 @@ keystore.properties
 
 # Misc
 .DS_Store
+
+*.apk
