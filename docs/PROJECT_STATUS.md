@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.0.1 bug-fix release (debug APK + signed release APK produced)**
+Last updated: 2026-11-16 · Build: **v1.0.2 (new launcher icon + v1.0.1 bug fixes)**
 
 ## v1.0.1 bug fixes
 

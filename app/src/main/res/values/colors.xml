@@ -3,4 +3,5 @@
     <color name="kube_background">#090B10</color>
     <color name="kube_lime">#B7FF38</color>
     <color name="kube_surface">#121722</color>
+    <color name="kube_launcher_blue">#0163FA</color>
 </resources>
