@@ -155,6 +155,7 @@ class PubgGfxEngine(
         backupFile(packageName).delete()
         backupMetaFile(packageName).delete()
         saveBackupFile(packageName).delete()
+        clearApplied(packageName)
     }
 
     /**
@@ -283,6 +284,27 @@ class PubgGfxEngine(
         }
         file.delete()
         refreshKeys.associateWith { getSystemSetting(it) }
+    }
+
+    // ---- What was applied (to detect a game resetting it) -----------------
+
+    private fun appliedFile(pkg: String) = File(backupDir(), "$pkg.applied")
+
+    /** Remembers the frame-rate level written and a fingerprint of the save as written. */
+    fun recordApplied(pkg: String, fpsLevel: Int, written: ByteArray) {
+        appliedFile(pkg).writeText("$fpsLevel ${written.contentHashCode()}")
+    }
+
+    /** (frame-rate level applied, fingerprint of the save as written), or null. */
+    fun appliedRecord(pkg: String): Pair<Int, Int>? = try {
+        appliedFile(pkg).takeIf { it.exists() }?.readText()?.trim()?.split(' ')
+            ?.let { (level, hash) -> level.toInt() to hash.toInt() }
+    } catch (_: Exception) {
+        null
+    }
+
+    fun clearApplied(pkg: String) {
+        appliedFile(pkg).delete()
     }
 
     // Active.sav backup, kept beside the .ini backup.

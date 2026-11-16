@@ -23,8 +23,8 @@ android {
         applicationId = "com.kuduy.kubooster"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.1.12"
+        versionCode = 18
+        versionName = "1.1.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

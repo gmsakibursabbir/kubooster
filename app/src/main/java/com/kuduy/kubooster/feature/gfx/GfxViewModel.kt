@@ -60,6 +60,12 @@ data class GfxUiState(
     val message: String? = null,
     /** What Restore will put back, in the game's names (null = no game-settings backup). */
     val restoreSummary: String? = null,
+    /**
+     * Result of comparing what was applied with what the game saved after
+     * it ran: kept it, or lowered it. Null when there is nothing to compare
+     * yet (no apply, or the game hasn't run since).
+     */
+    val fpsCheck: FpsCheck? = null,
     /** Frame rate chosen in the UI (null = nothing chosen yet). */
     val fpsTarget: Int? = 90,
     /**
@@ -78,6 +84,9 @@ data class GfxUiState(
 )
 
 enum class GfxApplyPhase { Idle, Optimizing, Success, Failed }
+
+/** Whether the game kept the applied frame rate after running. */
+data class FpsCheck(val kept: Boolean, val message: String)
 
 /**
  * GFX mode: the real UserCustom.ini editor.
@@ -238,6 +247,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                                 ),
                                 hasBackup = hasAnyBackup(pkg),
                                 restoreSummary = restoreSummaryFor(pkg),
+                                fpsCheck = checkKept(pkg, sav),
                             )
                         }
                     }
@@ -316,6 +326,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                         busy = false,
                         hasBackup = true,
                         restoreSummary = restoreSummaryFor(pkg),
+                        fpsCheck = null, // judged again once the game has run
                         applyPhase = if (saveOk) GfxApplyPhase.Success else GfxApplyPhase.Failed,
                         message = buildString {
                             if (saveOk) {
@@ -400,6 +411,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             return SaveFpsResult.WriteFailed
         }
         if (!engine.writeSaveVerified(pkg, edited!!)) return SaveFpsResult.WriteFailed
+        // Remember what was written, to tell later whether the game kept it.
+        engine.recordApplied(pkg, fpsLevel, edited!!)
         // Read back what the game will see.
         engine.readSave(pkg)?.let { after ->
             GfxLog.log("Active.sav after write: " + ActiveSavEditor.readIntProperties(after)
@@ -549,6 +562,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 .toByteArray(Charsets.ISO_8859_1),
         )
         engine.clearRefreshLock()
+        engine.clearApplied(pkg)
         GfxLog.log("reset result: ${if (ok) "OK" else "FAILED"}; refresh-rate lock removed")
         _state.update {
             it.copy(
@@ -633,6 +647,30 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         pkg == GameVariant.FLASH.packageName && (current == null || current == "supersmooth") -> "flashexclusive"
         pkg != GameVariant.FLASH.packageName && current == "flashexclusive" -> "supersmooth"
         else -> current
+    }
+
+    /**
+     * Compares the frame rate KuBooster applied with what the game saved.
+     * Only once the game has rewritten the save since the apply (fingerprint
+     * changed) — before that there is nothing to judge.
+     */
+    private fun checkKept(pkg: String, sav: ByteArray?): FpsCheck? {
+        val (applied, writtenHash) = engine.appliedRecord(pkg) ?: return null
+        if (sav == null || sav.contentHashCode() == writtenHash) return null
+        val now = ActiveSavEditor.readIntProperties(sav).firstOrNull { it.name == "BattleFPS" }?.value ?: return null
+        val game = _state.value.targets.firstOrNull { it.variant.packageName == pkg }?.variant?.displayName ?: "The game"
+        val check = if (now < applied) {
+            FpsCheck(
+                kept = false,
+                message = "$game lowered the frame rate from ${ActiveSavEditor.levelLabel(applied)} to " +
+                    "${ActiveSavEditor.levelLabel(now)} when it started — it doesn't allow more on this phone. " +
+                    "Pick ${ActiveSavEditor.levelLabel(now).substringAfter("(").substringBefore(")")} FPS for smooth play.",
+            )
+        } else {
+            FpsCheck(kept = true, message = "$game kept ${ActiveSavEditor.levelLabel(now)} after running.")
+        }
+        GfxLog.log("fps check: applied $applied, game saved $now — ${if (check.kept) "kept" else "lowered by the game"}")
+        return check
     }
 
     private fun hasAnyBackup(pkg: String) = engine.backupExists(pkg) || engine.saveBackupExists(pkg)

@@ -188,6 +188,7 @@ fun GfxScreen(
                             onRefresh,
                         )
                         is GfxFileStatus.Loaded -> {
+                            state.fpsCheck?.let { FpsCheckCard(it) }
                             ResolutionCard(state.resolutionKey, onSelectResolution)
 
                             SettingCard(Icons.Filled.HighQuality, "Graphics Quality") {
@@ -618,6 +619,32 @@ private fun Warning(text: String) {
         color = MaterialTheme.colorScheme.error,
         modifier = Modifier.padding(top = 10.dp),
     )
+}
+
+/** After playing: did the game keep the frame rate KuBooster applied? */
+@Composable
+private fun FpsCheckCard(check: FpsCheck) {
+    val accent = if (check.kept) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(accent.copy(alpha = 0.10f))
+            .border(1.dp, accent.copy(alpha = 0.45f), shape)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Speed, contentDescription = null, tint = accent)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (check.kept) "Frame rate kept" else "Game lowered the frame rate",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            )
+            Text(check.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable

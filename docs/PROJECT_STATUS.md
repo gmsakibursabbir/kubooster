@@ -1,6 +1,13 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.12 (Flash Exclusive mode for 90 FPS on PUBG Flash)**
+Last updated: 2026-11-16 · Build: **v1.1.13 (frame-rate check after playing)**
+
+## v1.1.13 changes
+
+1. **Applied record** — `PubgGfxEngine.recordApplied` stores the applied FPS level + a hash of the written Active.sav (`<pkg>.applied`); cleared on backup delete / reset.
+2. **`GfxViewModel.checkKept`** — on load, once the save hash differs from the applied one, compares `BattleFPS` to the applied level and sets `fpsCheck`; reset on apply.
+3. **`FpsCheckCard`** on the GFX screen — "Frame rate kept" or "Game lowered the frame rate" with a suggested FPS; logged.
+4. Unverified on device.
 
 ## v1.1.12 changes
 
