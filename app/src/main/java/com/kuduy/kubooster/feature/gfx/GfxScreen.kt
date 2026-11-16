@@ -47,8 +47,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -106,6 +104,8 @@ fun GfxScreen(
     onRemoveGfx: () -> Unit,
     onDiscardBackup: () -> Unit,
     onDismissOverlay: () -> Unit,
+    /** Opens the selected game after a successful apply (activity-context launch). */
+    onLaunchGame: () -> Unit,
     /** Shown under the header, e.g. the in-app update banner. */
     topContent: @Composable () -> Unit = {},
 ) {
@@ -113,7 +113,11 @@ fun GfxScreen(
 
     LaunchedEffect(state.applyPhase) {
         if (state.applyPhase == GfxApplyPhase.Success) {
-            delay(2500)
+            // Let the Success overlay register, then open the game from the
+            // Activity context (app-context starts are blocked on some skins).
+            delay(600)
+            onLaunchGame()
+            delay(1900)
             onDismissOverlay()
         }
     }
@@ -152,6 +156,20 @@ fun GfxScreen(
                             selected = state.selectedPackage,
                             onSelect = onSelectTarget,
                         )
+                        // Proper game name + installed version for the pick.
+                        state.targets
+                            .firstOrNull { it.variant.packageName == state.selectedPackage }
+                            ?.let { target ->
+                                Text(
+                                    buildString {
+                                        append(target.variant.displayName)
+                                        target.versionName?.let { append("  ·  v$it") }
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
                     }
 
                     when (val status = state.status) {
@@ -188,6 +206,9 @@ fun GfxScreen(
                                 Hint("For 90 or 120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate.")
                             }
 
+                            // Restore first: it must never be buried below the fold.
+                            BackupCard(state, onRemoveGfx, onDiscardBackup)
+
                             KubeCard(Modifier.fillMaxWidth()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     CardIcon(Icons.Filled.BlurOn)
@@ -210,8 +231,6 @@ fun GfxScreen(
                                     )
                                 }
                             }
-
-                            BackupCard(state, onRemoveGfx, onDiscardBackup)
                         }
                     }
                 }
@@ -220,8 +239,8 @@ fun GfxScreen(
             state.message?.let { NoticeCard(it) }
             GfxLogCard()
 
-            // Room for the sticky swipe bar.
-            Spacer(Modifier.height(96.dp))
+            // Room for the sticky swipe bar (bar + its padding + nav inset).
+            Spacer(Modifier.height(150.dp))
         }
 
         // ---- Sticky swipe-to-apply ------------------------------------
@@ -473,7 +492,6 @@ private fun CardIcon(icon: ImageVector) {
 @Composable
 private fun ResolutionCard(selectedKey: String, onSelect: (String) -> Unit) {
     val keys = GfxConfigEditor.RESOLUTION_KEYS
-    val index = keys.indexOf(selectedKey).coerceAtLeast(0)
     SettingCard(
         icon = Icons.Filled.AspectRatio,
         title = "Resolution",
@@ -485,33 +503,11 @@ private fun ResolutionCard(selectedKey: String, onSelect: (String) -> Unit) {
             )
         },
     ) {
-        Slider(
-            value = index.toFloat(),
-            onValueChange = { onSelect(keys[it.roundToInt().coerceIn(0, keys.lastIndex)]) },
-            valueRange = 0f..keys.lastIndex.toFloat(),
-            steps = keys.size - 2,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            ),
+        Segmented(
+            keys.map { it to resolutionLabel(it) },
+            selected = selectedKey,
+            onSelect = onSelect,
         )
-        Row(Modifier.fillMaxWidth()) {
-            keys.forEachIndexed { i, key ->
-                Text(
-                    resolutionLabel(key),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (i == index) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = when (i) {
-                        0 -> TextAlign.Start
-                        keys.lastIndex -> TextAlign.End
-                        else -> TextAlign.Center
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
     }
 }
 
@@ -586,7 +582,8 @@ private fun SelectableTile(
             label,
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
         )
     }
 }

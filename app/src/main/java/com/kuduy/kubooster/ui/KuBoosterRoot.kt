@@ -85,6 +85,7 @@ fun KuBoosterRoot(container: AppContainer) {
                 onRemoveGfx = { vm.removeGfx() },
                 onDiscardBackup = { vm.discardSaveBackup() },
                 onDismissOverlay = { vm.dismissApplyPhase() },
+                onLaunchGame = { vm.launchGameFrom(context) },
                 topContent = {
                     UpdateBanner(
                         update = updateState,

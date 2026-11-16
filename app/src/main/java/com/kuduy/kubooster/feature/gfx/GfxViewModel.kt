@@ -1,5 +1,7 @@
 package com.kuduy.kubooster.feature.gfx
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -315,7 +317,6 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                         },
                     )
                 }
-                if (saveOk) launchGame(pkg)
             } else {
                 _state.update {
                     it.copy(
@@ -413,15 +414,35 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    /** Opens the selected game after a successful apply ("Apply & Run Game"). */
-    private fun launchGame(packageName: String) {
+    /**
+     * Opens the selected game after a successful apply. Called from the UI
+     * with the Activity context: starting activities from an app-context
+     * background launch is blocked on some OEM skins (MIUI/HyperOS, ColorOS),
+     * which is why "game didn't open" used to happen silently.
+     */
+    fun launchGameFrom(context: Context) {
+        val pkg = _state.value.selectedPackage ?: return
+        val pm = context.packageManager
+        val intent = pm.getLaunchIntentForPackage(pkg)
+            ?: pm.getLeanbackLaunchIntentForPackage(pkg)
+            ?: Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                setPackage(pkg)
+            }
+        if (intent == null) {
+            GfxLog.log("game launch: no launcher intent for $pkg")
+            _state.update { it.copy(message = "Config applied — but PUBG could not be opened. Start it manually.") }
+            return
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         try {
-            container.appContext.packageManager
-                .getLaunchIntentForPackage(packageName)
-                ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                ?.let { container.appContext.startActivity(it) }
-        } catch (_: Exception) {
-            // Launching is a convenience; the config change already succeeded.
+            GfxLog.log("game launch: starting $pkg")
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            GfxLog.log("game launch failed: ${e.javaClass.simpleName}: ${e.message}")
+            _state.update {
+                it.copy(message = "Config applied — but PUBG could not be opened (${e.javaClass.simpleName}). Start it manually.")
+            }
         }
     }
 

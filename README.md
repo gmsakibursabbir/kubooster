@@ -12,7 +12,7 @@
 
 <br/>
 
-[![Release](https://img.shields.io/badge/release-v1.1.8-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
+[![Release](https://img.shields.io/badge/release-v1.1.9-0163FA?style=flat-square&logo=android)](https://github.com/gmsakibursabbir/kubooster/releases)
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Target](https://img.shields.io/badge/target-Android%2014-3DDC84?style=flat-square&logo=android)](#-installation)
 [![Size](https://img.shields.io/badge/APK-~2%20MB-0163FA?style=flat-square)](https://github.com/gmsakibursabbir/kubooster/releases)
@@ -55,7 +55,7 @@ It is built on one non-negotiable principle: **it never shows you a number it ca
 **No root. No ADB. No PC.**
 
 1. Go to [**Releases**](https://github.com/gmsakibursabbir/kubooster/releases)
-2. Download the latest APK (e.g. `kubooster-v1.1.8-release.apk`)
+2. Download the latest APK (e.g. `kubooster-v1.1.9-release.apk`)
 3. Tap the file on your phone. If asked, allow **"Install unknown apps"** for your file manager
 4. If Google Play Protect shows **"App scan recommended"** — that dialog appears for *every* app installed outside the Play Store, it is not a problem with KuBooster. Tap **"Install without scanning"** (or let it scan; both are fine — KuBooster has no ads, no analytics, and talks to github.com only)
 5. Open KuBooster — onboarding runs real device detection immediately

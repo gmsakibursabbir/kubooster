@@ -1,6 +1,16 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.8 (GFX-only app, redesigned screen, HDR preset + anti-aliasing)**
+Last updated: 2026-11-16 · Build: **v1.1.9 (UI fixes: resolution segmented control, tile labels, sticky-bar overlap)**
+
+## v1.1.9 changes
+
+1. **Resolution slider replaced with the segmented control** — the custom slider rendered its thumb detached from the track end (broken visuals); Default / 720p / 1080p now use the same segmented control as Game Version and FPS.
+2. **"Super Smooth" tile no longer truncated** — tiles allow two lines, so the graphics grid shows the full preset name.
+3. **Sticky "Swipe to Apply & Boost" bar no longer covers content** — bottom scroll room increased so the Anti-Aliasing card and Diagnostic log can be scrolled fully into view.
+4. **The game opens again after a successful apply** — the launch now runs from the Activity context (starting activities from an app-context background launch is blocked on some OEM skins — MIUI/HyperOS, ColorOS — which silently killed the launch), with a fallback launcher intent, diagnostic-log entries, and a visible message if launching fails.
+5. **Proper game name shown** — the Game Version card captions the selected variant's full name and installed version (e.g. "PUBG Mobile Flash · v3.7.0").
+6. **Restore card moved above Anti-Aliasing** — the backup/restore controls are never buried below the fold.
+7. Unused slider code and imports removed.
 
 ## v1.1.8 changes
 
