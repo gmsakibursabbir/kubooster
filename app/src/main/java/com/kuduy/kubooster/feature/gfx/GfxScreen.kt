@@ -125,27 +125,7 @@ fun GfxScreen(
                 ThemeToggleButton(isDark, onToggleTheme)
             }
 
-            // ---- Hero ---------------------------------------------------
-            KubeCard(Modifier.fillMaxWidth()) {
-                Text(
-                    text = "PRO OPTIMIZER",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = "Unlock Max FPS &\nUltra Graphics",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-                Text(
-                    text = "Configured for ultimate PUBG Mobile performance.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
-
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(4.dp))
 
             when {
                 !state.shizukuInstalled -> ShizukuMissingCard()
@@ -297,7 +277,7 @@ fun GfxScreen(
                                 }
                             }
                             Text(
-                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. KuBooster sets it directly in the game's save (Active.sav). Works on any screen, 60 Hz included. Don't change Frame Rate in the game afterwards — that overwrites it.",
+                                "For 90/120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate. Don't change graphics or frame rate in the game afterwards.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -526,88 +506,25 @@ private fun ShizukuPill(state: GfxUiState) {
 
 // ---- Current values ---------------------------------------------------------
 
+/** What the game will use, read from its save (combat settings), in the game's own names. */
 @Composable
 private fun CurrentConfigCard(status: GfxFileStatus.Loaded) {
-    // Active.sav holds the frame rate the game actually uses; prefer it.
-    val fpsSummary = run {
-        val levels = status.saveFpsLevels?.values?.distinct().orEmpty()
-        val values = GfxConfigEditor.MANAGED_FPS_KEYS.mapNotNull { status.fpsValues[it] }
-        when {
-            levels.size == 1 -> ActiveSavEditor.levelLabel(levels.first())
-            levels.size > 1 -> "Mixed"
-            values.isEmpty() -> "Game default"
-            values.distinct().size == 1 -> "${values.first()} FPS"
-            else -> "Mixed"
-        }
-    }
+    val fps = status.saveFpsLevels?.get("BattleFPS") ?: status.saveFpsLevels?.values?.firstOrNull()
     KubeCard(Modifier.fillMaxWidth()) {
-        Text("Current config", style = MaterialTheme.typography.titleMedium)
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-        ) {
-            Text(
-                text = fpsSummary,
-                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
-                color = if (fpsSummary == "Game default")
-                    MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-            )
-        }
-        Text(
-            status.configPath,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
-        )
+        Text("In game now", style = MaterialTheme.typography.titleMedium)
         InfoRow(
-            label = "Active.sav frame rate",
-            value = when {
-                status.saveFpsLevels == null -> "file not found"
-                status.saveFpsLevels.isEmpty() -> "not set yet"
-                else -> status.saveFpsLevels.entries.joinToString { "${it.key}=${it.value}" }
-            },
-            valueColor = if (!status.saveFpsLevels.isNullOrEmpty())
-                MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        GfxConfigEditor.MANAGED_FPS_KEYS.forEach { key ->
-            InfoRow(
-                label = key.removePrefix("r.PUBGDeviceFPS"),
-                value = status.fpsValues[key] ?: "not set",
-                valueColor = if (status.fpsValues[key] != null)
-                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        InfoRow(
-            label = "Graphics quality",
-            value = graphicsSummary(status.cvars),
+            label = "Frame rate",
+            value = fps?.let(ActiveSavEditor::levelLabel)
+                ?: if (status.saveFpsLevels == null) "Open the game once" else "Not set",
             valueColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        InfoRow(
+            label = "Graphics",
+            value = status.saveQuality?.let(ActiveSavEditor::qualityLabel) ?: "Not set",
+            valueColor = MaterialTheme.colorScheme.primary,
         )
     }
-}
-
-/** Human summary of the graphics keys actually present in the file. */
-private fun graphicsSummary(cvars: Map<String, String>): String {
-    val quality = cvars["r.UserQualitySetting"]
-    val hdr = cvars["r.UserHDRSetting"]
-    val parts = buildList {
-        add(
-            when (quality) {
-                "0" -> "Smooth"
-                "1" -> "Balanced"
-                "2" -> "HD"
-                "3" -> "Ultra"
-                null -> "not set"
-                else -> "Level $quality"
-            },
-        )
-        when (hdr) {
-            "1" -> add("HDR 1")
-            "2" -> add("HDR 2")
-            "3" -> add("HDR 3")
-        }
-    }
-    return if (parts.all { it == "not set" }) "Game default" else parts.joinToString(" · ")
 }
 
 // ---- Remove / restore -------------------------------------------------------

@@ -85,21 +85,39 @@ object ActiveSavEditor {
         name == "ArtQuality" || name.endsWith("RenderQuality")
 
     /**
-     * Game quality level per KuBooster preset (1 Smooth · 2 Balanced · 3 HD ·
-     * 4 HDR · 5 Ultra HD · 6 Super Smooth), per MK-PUBG-Mobile-Tool.
+     * Game quality level per KuBooster preset, verified on PUBG Mobile and
+     * PUBG Flash v4.7.0 (a device with Super Smooth selected in game had
+     * BattleRenderQuality=1):
+     *   1 Super Smooth · 2 Smooth · 3 Balanced · 4 HD · 5 HDR ·
+     *   6 Ultra HDR · 7 Extreme HDR
+     * The game clamps a level the device doesn't support down to its highest
+     * allowed one, and higher levels also lower the allowed frame rate (e.g.
+     * Ultra HDR caps at Ultra/40) — so a wrong level silently kills the FPS
+     * unlock.
      */
     fun qualityLevel(presetKey: String): Int? = when (presetKey) {
-        "supersmooth" -> 6
-        "smooth" -> 1
-        "balanced" -> 2
-        "hd" -> 3
-        "ultrahdr" -> 5
+        "supersmooth" -> 1
+        "smooth" -> 2
+        "balanced" -> 3
+        "hd" -> 4
+        "ultrahdr" -> 6
         else -> null
+    }
+
+    fun qualityLabel(level: Int): String = when (level) {
+        1 -> "Super Smooth"
+        2 -> "Smooth"
+        3 -> "Balanced"
+        4 -> "HD"
+        5 -> "HDR"
+        6 -> "Ultra HDR"
+        7 -> "Extreme HDR"
+        else -> "level $level"
     }
 
     /** Like [applyFpsLevel] for the graphics-quality properties. */
     fun applyQualityLevel(bytes: ByteArray, level: Int): ByteArray? {
-        require(level in 1..6) { "quality level out of range: $level" }
+        require(level in 1..7) { "quality level out of range: $level" }
         return applyLevel(bytes, level, ::isQualityProperty)
     }
 

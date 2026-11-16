@@ -27,6 +27,8 @@ sealed interface GfxFileStatus {
         val configPath: String,
         /** Frame-rate properties from Active.sav (name -> level); null = file not found. */
         val saveFpsLevels: Map<String, Int>? = null,
+        /** BattleRenderQuality from Active.sav (game's graphics level); null = unknown. */
+        val saveQuality: Int? = null,
     ) : GfxFileStatus
     /** File not present at the documented path; listing shows what is there. */
     data class Missing(
@@ -205,6 +207,9 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                                     },
                                     configPath = engine.configPath(pkg),
                                     saveFpsLevels = saveLevels,
+                                    saveQuality = sav?.let { s ->
+                                        ActiveSavEditor.readIntProperties(s).firstOrNull { it.name == "BattleRenderQuality" }?.value
+                                    },
                                 ),
                             )
                         }
@@ -331,6 +336,10 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             return SaveFpsResult.NoFpsField
         }
         GfxLog.log("Active.sav: frame-rate level -> $fpsLevel (${ActiveSavEditor.levelLabel(fpsLevel)})")
+        if (presetKey == null) {
+            val quality = ActiveSavEditor.readIntProperties(sav).firstOrNull { it.name == "BattleRenderQuality" }?.value
+            GfxLog.log("no graphics preset: keeping game graphics level ${quality ?: "?"} — levels above Balanced (3) can make the game lower the frame rate")
+        }
         presetKey?.let(ActiveSavEditor::qualityLevel)?.let { q ->
             val withQuality = ActiveSavEditor.applyQualityLevel(edited!!, q)
             if (withQuality != null) {

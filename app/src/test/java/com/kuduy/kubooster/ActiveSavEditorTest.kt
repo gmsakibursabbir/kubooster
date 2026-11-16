@@ -58,6 +58,21 @@ class ActiveSavEditorTest {
     }
 
     @Test
+    fun `presets map to the game's quality levels`() {
+        // Verified on device: Super Smooth selected in game == BattleRenderQuality 1.
+        assertEquals(1, ActiveSavEditor.qualityLevel("supersmooth"))
+        assertEquals(2, ActiveSavEditor.qualityLevel("smooth"))
+        assertEquals(3, ActiveSavEditor.qualityLevel("balanced"))
+        assertEquals(4, ActiveSavEditor.qualityLevel("hd"))
+        assertEquals(6, ActiveSavEditor.qualityLevel("ultrahdr"))
+        val out = ActiveSavEditor.applyQualityLevel(
+            sav("BattleRenderQuality" to 6, "LobbyRenderQuality" to 4, "BattleRenderStyle" to 2, "BattleFPS" to 7), 1,
+        )!!
+        val after = ActiveSavEditor.readIntProperties(out).associate { it.name to it.value }
+        assertEquals(mapOf("BattleRenderQuality" to 1, "LobbyRenderQuality" to 1, "BattleRenderStyle" to 2, "BattleFPS" to 7), after)
+    }
+
+    @Test
     fun `fps to game level`() {
         assertEquals(4, ActiveSavEditor.fpsLevel(30))
         assertEquals(6, ActiveSavEditor.fpsLevel(60))
@@ -67,11 +82,6 @@ class ActiveSavEditorTest {
 
     @Test
     fun `quality presets map to game levels and apply`() {
-        assertEquals(6, ActiveSavEditor.qualityLevel("supersmooth"))
-        assertEquals(1, ActiveSavEditor.qualityLevel("smooth"))
-        assertEquals(2, ActiveSavEditor.qualityLevel("balanced"))
-        assertEquals(3, ActiveSavEditor.qualityLevel("hd"))
-        assertEquals(5, ActiveSavEditor.qualityLevel("ultrahdr"))
         assertNull(ActiveSavEditor.qualityLevel("unknown"))
         // Quality write touches ArtQuality and RenderQuality names only.
         val b = sav("ArtQuality" to 1, "LobbyRenderQuality" to 1, "BattleRenderQuality" to 1, "FPSLevel" to 6)
