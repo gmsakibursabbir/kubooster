@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- KuBooster mark: a lightning bolt in brand lime, centered inside the
+     adaptive-icon safe zone (108dp viewport, 66dp safe circle). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#B7FF38"
+        android:pathData="M60.5,30 L40,58 L52,58 L47.5,78 L70,48 L56,48 Z" />
+</vector>

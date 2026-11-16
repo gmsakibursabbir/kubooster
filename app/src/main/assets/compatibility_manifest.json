@@ -1,0 +1,65 @@
+{
+  "manifestVersion": 1,
+  "entries": [
+    {
+      "gameVariant": "GLOBAL",
+      "packageName": "com.tencent.ig",
+      "versionName": "4.7.0",
+      "versionCode": null,
+      "supportedDeviceConditions": null,
+      "verifiedFpsProfiles": [],
+      "graphicsRecommendations": null,
+      "evidence": null,
+      "verificationStatus": "unverified",
+      "verifiedAt": null
+    },
+    {
+      "gameVariant": "FLASH",
+      "packageName": "com.tencent.igfit",
+      "versionName": "4.7.0",
+      "versionCode": null,
+      "supportedDeviceConditions": null,
+      "verifiedFpsProfiles": [],
+      "graphicsRecommendations": null,
+      "evidence": null,
+      "verificationStatus": "unverified",
+      "verifiedAt": null
+    },
+    {
+      "gameVariant": "KR",
+      "packageName": "com.pubg.krmobile",
+      "versionName": "4.7.0",
+      "versionCode": null,
+      "supportedDeviceConditions": null,
+      "verifiedFpsProfiles": [],
+      "graphicsRecommendations": null,
+      "evidence": null,
+      "verificationStatus": "unverified",
+      "verifiedAt": null
+    },
+    {
+      "gameVariant": "VN",
+      "packageName": "com.vng.pubgmobile",
+      "versionName": "4.7.0",
+      "versionCode": null,
+      "supportedDeviceConditions": null,
+      "verifiedFpsProfiles": [],
+      "graphicsRecommendations": null,
+      "evidence": null,
+      "verificationStatus": "unverified",
+      "verifiedAt": null
+    },
+    {
+      "gameVariant": "BGMI",
+      "packageName": "com.pubg.imobile",
+      "versionName": "4.7.0",
+      "versionCode": null,
+      "supportedDeviceConditions": null,
+      "verifiedFpsProfiles": [],
+      "graphicsRecommendations": null,
+      "evidence": null,
+      "verificationStatus": "unverified",
+      "verifiedAt": null
+    }
+  ]
+}

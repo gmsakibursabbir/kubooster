@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws everything; this only needs to match the window background
+         so launch does not flash white before the first frame. -->
+    <style name="Theme.KuBooster" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/kube_background</item>
+        <item name="android:statusBarColor">@color/kube_background</item>
+        <item name="android:navigationBarColor">@color/kube_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
