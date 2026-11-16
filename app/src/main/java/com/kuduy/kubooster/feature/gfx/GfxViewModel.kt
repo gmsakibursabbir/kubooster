@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
+import com.kuduy.kubooster.data.gfx.GfxLog
 import com.kuduy.kubooster.data.gfx.PubgGfxEngine
 import com.kuduy.kubooster.di.AppContainer
 import com.kuduy.kubooster.domain.model.DetectionState
@@ -159,9 +160,13 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 return@launch
             }
             _state.update { it.copy(status = GfxFileStatus.Loading, message = null) }
+            val version = _state.value.targets.firstOrNull { it.variant.packageName == pkg }?.versionName
+            GfxLog.log("---- load $pkg v${version ?: "?"} · Android ${android.os.Build.VERSION.SDK_INT} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
             val gameRunning = engine.isGameRunning(pkg)
+            GfxLog.log("game running: ${gameRunning ?: "unknown (Shizuku call failed)"}")
             _state.update { it.copy(gameRunning = gameRunning) }
             val present = engine.isConfigPresent(pkg)
+            GfxLog.log("UserCustom.ini present: ${present ?: "unknown (Shizuku call failed)"}")
             when {
                 present == null -> _state.update {
                     it.copy(status = GfxFileStatus.Unavailable("Could not talk to Shizuku. Restart Shizuku and retry."))
@@ -185,8 +190,11 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                     } else {
                         val content = String(bytes, Charsets.ISO_8859_1)
                         val cvars = GfxConfigEditor.readCvars(content)
-                        val saveLevels = engine.readSave(pkg)?.let { sav ->
-                            ActiveSavEditor.readFpsProperties(sav).associate { it.name to it.value }
+                        GfxLog.log("UserCustom.ini: ${bytes.size} bytes, ${cvars.size} CVars, FPS keys ${cvars.filterKeys { it in GfxConfigEditor.MANAGED_FPS_KEYS }}")
+                        val sav = engine.readSave(pkg)
+                        logSave(pkg, sav)
+                        val saveLevels = sav?.let { s ->
+                            ActiveSavEditor.readFpsProperties(s).associate { it.name to it.value }
                         }
                         _state.update {
                             it.copy(
@@ -223,7 +231,9 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         val presetLabel = presetLabel(presetKey)
         viewModelScope.launch {
             _state.update { it.copy(busy = true, message = null, applyPhase = GfxApplyPhase.Optimizing) }
+            GfxLog.log("---- apply $pkg: fps $fps, preset ${presetKey ?: "none"}, resolution $resolutionKey")
             val running = engine.isGameRunning(pkg)
+            GfxLog.log("game running: ${running ?: "unknown"}")
             _state.update { it.copy(gameRunning = running) }
             if (running == true) {
                 _state.update {
@@ -256,10 +266,12 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             val content = String(original, Charsets.ISO_8859_1)
             val edited = GfxConfigEditor.applyCvars(content, values)
             val ok = engine.writeConfigVerified(pkg, edited.toByteArray(Charsets.ISO_8859_1))
+            GfxLog.log("UserCustom.ini write: ${if (ok) "OK" else "FAILED"} (${values.size} keys)")
             if (ok) {
                 // The frame rate the game actually runs at lives in Active.sav,
                 // not in UserCustom.ini — without this step the unlock does nothing.
-                val saveResult = applySaveFps(pkg, fps)
+                val saveResult = applySaveFps(pkg, fps, presetKey)
+                GfxLog.log("apply result: $saveResult")
                 val saveOk = saveResult == SaveFpsResult.Written
                 _state.update {
                     it.copy(
@@ -300,14 +312,61 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
         WriteFailed("writing Active.sav failed verification (file left unchanged). Restart Shizuku and retry"),
     }
 
-    /** Backs up Active.sav once, then sets every frame-rate property to the level for [fps]. */
-    private suspend fun applySaveFps(pkg: String, fps: Int): SaveFpsResult {
-        val sav = engine.readSave(pkg) ?: return SaveFpsResult.Missing
-        val edited = ActiveSavEditor.applyFpsLevel(sav, ActiveSavEditor.fpsLevel(fps))
-            ?: return SaveFpsResult.NoFpsField
+    /**
+     * Backs up Active.sav once, then sets every frame-rate property to the
+     * level for [fps] and, when a preset is chosen, every graphics-quality
+     * property to that preset's game level (e.g. Super Smooth = 6).
+     */
+    private suspend fun applySaveFps(pkg: String, fps: Int, presetKey: String?): SaveFpsResult {
+        val sav = engine.readSave(pkg)
+        if (sav == null) {
+            GfxLog.log("Active.sav missing — SaveGames: ${engine.listSaveDir(pkg)}")
+            return SaveFpsResult.Missing
+        }
+        val fpsLevel = ActiveSavEditor.fpsLevel(fps)
+        var edited = ActiveSavEditor.applyFpsLevel(sav, fpsLevel)
+        if (edited == null) {
+            GfxLog.log("Active.sav: no int frame-rate property found — nothing written")
+            logSave(pkg, sav)
+            return SaveFpsResult.NoFpsField
+        }
+        GfxLog.log("Active.sav: frame-rate level -> $fpsLevel (${ActiveSavEditor.levelLabel(fpsLevel)})")
+        presetKey?.let(ActiveSavEditor::qualityLevel)?.let { q ->
+            val withQuality = ActiveSavEditor.applyQualityLevel(edited!!, q)
+            if (withQuality != null) {
+                edited = withQuality
+                GfxLog.log("Active.sav: graphics level -> $q ($presetKey)")
+            } else {
+                GfxLog.log("Active.sav: no graphics-quality property found, graphics level not written")
+            }
+        }
         if (!engine.saveBackupExists(pkg)) engine.storeSaveBackup(pkg, sav)
-        if (!engine.saveBackupExists(pkg)) return SaveFpsResult.WriteFailed
-        return if (engine.writeSaveVerified(pkg, edited)) SaveFpsResult.Written else SaveFpsResult.WriteFailed
+        if (!engine.saveBackupExists(pkg)) {
+            GfxLog.log("Active.sav backup could not be stored — not writing")
+            return SaveFpsResult.WriteFailed
+        }
+        if (!engine.writeSaveVerified(pkg, edited!!)) return SaveFpsResult.WriteFailed
+        // Read back what the game will see.
+        engine.readSave(pkg)?.let { after ->
+            GfxLog.log("Active.sav after write: " + ActiveSavEditor.readIntProperties(after)
+                .filter { ActiveSavEditor.isFpsProperty(it.name) || ActiveSavEditor.isQualityProperty(it.name) }
+                .joinToString { "${it.name}=${it.value}" })
+        }
+        return SaveFpsResult.Written
+    }
+
+    /** Logs what Active.sav contains: size, int settings and FPS/quality-like names of any type. */
+    private suspend fun logSave(pkg: String, sav: ByteArray?) {
+        if (sav == null) {
+            GfxLog.log("Active.sav: not found — SaveGames: ${engine.listSaveDir(pkg)}")
+            return
+        }
+        val ints = ActiveSavEditor.readIntProperties(sav)
+        GfxLog.log("Active.sav: ${sav.size} bytes, header ${String(sav, 0, minOf(4, sav.size), Charsets.ISO_8859_1)}, ${ints.size} int settings")
+        GfxLog.log("Active.sav FPS/quality ints: " + ints
+            .filter { ActiveSavEditor.isFpsProperty(it.name) || ActiveSavEditor.isQualityProperty(it.name) }
+            .joinToString { "${it.name}=${it.value}" }.ifEmpty { "none" })
+        GfxLog.log("Active.sav related names: " + ActiveSavEditor.describeRelevantStrings(sav).joinToString(" | ").ifEmpty { "none" })
     }
 
     /** Opens the selected game after a successful apply ("Apply & Run Game"). */
@@ -341,8 +400,10 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 _state.update { it.copy(busy = false, message = "No backup stored yet — the config was never modified.") }
                 return@launch
             }
+            GfxLog.log("---- remove $pkg: ini backup ${backup != null}, sav backup ${saveBackup != null}")
             val ok = (backup == null || engine.writeConfigVerified(pkg, backup)) &&
                 (saveBackup == null || engine.writeSaveVerified(pkg, saveBackup))
+            GfxLog.log("remove result: ${if (ok) "OK" else "FAILED"}")
             if (ok) {
                 // The config is back to its default state: drop the backup so
                 // the "Remove GFX settings" card disappears (a stale backup

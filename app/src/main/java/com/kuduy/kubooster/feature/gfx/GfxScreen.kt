@@ -47,12 +47,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.kuduy.kubooster.core.designsystem.InfoRow
 import com.kuduy.kubooster.core.designsystem.KubeCard
 import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
+import com.kuduy.kubooster.data.gfx.GfxLog
 import com.kuduy.kubooster.domain.model.GameVariant
 import kotlinx.coroutines.delay
 
@@ -217,8 +223,6 @@ fun GfxScreen(
                             }
                         }
                         is GfxFileStatus.Loaded -> {
-                            val selectedVariant = state.targets
-                                .firstOrNull { it.variant.packageName == state.selectedPackage }?.variant
 
                             // ---- Option sections (plain rows, per mockup) --
                             SectionLabel("Game Version")
@@ -263,9 +267,7 @@ fun GfxScreen(
                                     .horizontalScroll(rememberScrollState()),
                             ) {
                                 ChoiceChip("Default", state.presetKey == null, { onSelectPreset(null) })
-                                if (selectedVariant == GameVariant.FLASH) {
-                                    ChoiceChip("Super Smooth", state.presetKey == "supersmooth", { onSelectPreset("supersmooth") })
-                                }
+                                ChoiceChip("Super Smooth", state.presetKey == "supersmooth", { onSelectPreset("supersmooth") })
                                 ChoiceChip("Smooth", state.presetKey == "smooth", { onSelectPreset("smooth") })
                                 ChoiceChip("Balanced", state.presetKey == "balanced", { onSelectPreset("balanced") })
                                 ChoiceChip("HD", state.presetKey == "hd", { onSelectPreset("hd") })
@@ -295,7 +297,7 @@ fun GfxScreen(
                                 }
                             }
                             Text(
-                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. KuBooster sets it directly in the game's save (Active.sav). Don't change Frame Rate in the game afterwards — that overwrites it. Real FPS can't exceed your screen's refresh rate.",
+                                "PUBG names: 60 = Extreme · 90 = Extreme+ · 120 = Ultra Extreme. KuBooster sets it directly in the game's save (Active.sav). Works on any screen, 60 Hz included. Don't change Frame Rate in the game afterwards — that overwrites it.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -350,6 +352,9 @@ fun GfxScreen(
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+
+            Spacer(Modifier.height(14.dp))
+            GfxLogCard()
 
             Spacer(Modifier.height(28.dp))
         }
@@ -416,6 +421,49 @@ fun GfxScreen(
             },
             onDismiss = { showConfirm = false },
         )
+    }
+}
+
+// ---- Diagnostic log --------------------------------------------------------
+
+/** Shows every GFX step (reads, writes, verify, Active.sav contents) with copy/share. */
+@Composable
+private fun GfxLogCard() {
+    val lines by GfxLog.lines.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    KubeCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Diagnostic log", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide" else "Show (${lines.size})") }
+        }
+        Text(
+            "If FPS doesn't unlock, tap Share and send this log. It holds only file sizes, setting names and values.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (expanded) {
+            Text(
+                text = lines.takeLast(150).joinToString("\n").ifEmpty { "(empty — open or apply GFX first)" },
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+            )
+        }
+        Row(Modifier.padding(top = 6.dp)) {
+            TextButton(onClick = { clipboard.setText(AnnotatedString(GfxLog.text())) }) { Text("Copy") }
+            TextButton(onClick = {
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, GfxLog.text())
+                context.startActivity(Intent.createChooser(send, "Share GFX log"))
+            }) { Text("Share") }
+            TextButton(onClick = { GfxLog.clear() }) { Text("Clear") }
+        }
     }
 }
 
@@ -739,7 +787,7 @@ private fun fpsGameLabel(fps: Int): String = when (fps) {
 
 private fun presetDescription(key: String?): String = when (key) {
     null -> "Leave graphics exactly as the game set them — only the frame rate changes."
-    "supersmooth" -> "Flash exclusive — lightest tuning, everything optional off. For weak devices and highest FPS."
+    "supersmooth" -> "Lightest tuning, everything optional off — matches the game's Super Smooth level. For weak devices and highest FPS."
     "smooth" -> "Fewest shadows and effects — least lag, best for weak devices and high FPS."
     "balanced" -> "Middle ground between visuals and performance."
     "hd" -> "Sharper visuals, more device load."

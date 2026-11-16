@@ -23,6 +23,9 @@ class PubgGfxEngine(
     private val shizuku: ShizukuRepositoryImpl,
     private val dispatchers: AppDispatchers,
 ) {
+    init {
+        GfxLog.init(context.filesDir)
+    }
 
     fun configPath(packageName: String): String =
         "/storage/emulated/0/Android/data/$packageName/files/UE4Game/ShadowTrackerExtra/" +
@@ -57,8 +60,19 @@ class PubgGfxEngine(
     suspend fun readSave(packageName: String): ByteArray? = readFile(savePath(packageName))
 
     private suspend fun readFile(path: String): ByteArray? = withContext(dispatchers.io) {
-        val result = shizuku.runShell("cat '$path'") ?: return@withContext null
-        if (result.exitCode != 0) null else result.stdout
+        val result = shizuku.runShell("cat '$path'")
+        when {
+            result == null -> { GfxLog.log("read ${path.substringAfterLast('/')}: Shizuku call failed"); null }
+            result.exitCode != 0 -> { GfxLog.log("read ${path.substringAfterLast('/')}: exit ${result.exitCode} (missing or no access)"); null }
+            else -> result.stdout
+        }
+    }
+
+    /** Listing of the SaveGames folder, for the diagnostic log. */
+    suspend fun listSaveDir(packageName: String): String? = withContext(dispatchers.io) {
+        val result = shizuku.runShell("ls -l '${savePath(packageName).substringBeforeLast('/')}' 2>&1")
+            ?: return@withContext null
+        String(result.stdout, Charsets.ISO_8859_1).trim()
     }
 
     /** Directory listing for honest diagnostics when the file is not found. */
@@ -81,16 +95,24 @@ class PubgGfxEngine(
 
     private suspend fun writeFileVerified(path: String, bytes: ByteArray): Boolean =
         withContext(dispatchers.io) {
+            val name = path.substringAfterLast('/')
             val feed = shizuku.runShell("cat > $tempPath", stdin = bytes)
-                ?: return@withContext false
-            if (feed.exitCode != 0) return@withContext false
+            if (feed == null || feed.exitCode != 0) {
+                GfxLog.log("write $name: temp file failed (${feed?.exitCode ?: "Shizuku call failed"})")
+                return@withContext false
+            }
             val copy = shizuku.runShell(
-                "cp $tempPath '$path' && rm -f $tempPath && echo KUB_OK",
-            ) ?: return@withContext false
-            val copied = copy.exitCode == 0 &&
-                String(copy.stdout, Charsets.ISO_8859_1).contains("KUB_OK")
-            if (!copied) return@withContext false
-            readFile(path)?.contentEquals(bytes) == true
+                "cp $tempPath '$path' 2>&1 && rm -f $tempPath && echo KUB_OK",
+            )
+            val copyOut = copy?.let { String(it.stdout, Charsets.ISO_8859_1).trim() }
+            val copied = copy != null && copy.exitCode == 0 && copyOut!!.contains("KUB_OK")
+            if (!copied) {
+                GfxLog.log("write $name: copy failed (exit ${copy?.exitCode ?: "Shizuku call failed"}) $copyOut")
+                return@withContext false
+            }
+            val verified = readFile(path)?.contentEquals(bytes) == true
+            GfxLog.log("write $name: ${bytes.size} bytes, verify ${if (verified) "OK" else "FAILED"}")
+            verified
         }
 
     // ---- Backup (app-private storage) ----------------------------------

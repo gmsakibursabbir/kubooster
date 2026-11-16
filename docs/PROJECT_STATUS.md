@@ -1,6 +1,14 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.4 (Active.sav FPS unlock — writes the frame rate the game actually uses)**
+Last updated: 2026-11-16 · Build: **v1.1.5 (graphics quality written into Active.sav + GFX diagnostic log)**
+
+## v1.1.5 changes
+
+1. **Graphics quality now written into Active.sav too** — besides the frame-rate properties, the save's quality properties (`ArtQuality`, `LobbyRenderQuality`, `BattleRenderQuality`, any `*RenderQuality`) are set to the preset's game level (1 Smooth · 2 Balanced · 3 HD · 5 Ultra HD · 6 Super Smooth, per MK-PUBG-Mobile-Tool). The game's own Graphics setting then matches what KuBooster applied.
+2. **Super Smooth offered for every game variant** (no longer Flash-only) — it maps to the save's level 6 regardless of variant.
+3. **GFX diagnostic log** — every read, write, verify and Active.sav finding (file sizes, setting names/values, SaveGames folder listing when missing) is recorded in memory + app-private file. The GFX screen has a Diagnostic log card with Show / Copy / Share / Clear, so "FPS doesn't unlock" reports become actionable. Contains no personal data.
+4. Engine write failures now log the shell exit code and copy output; remove/apply/load steps are all logged.
+5. Tests cover the quality level mapping and quality-property write (ArtQuality/RenderQuality only, byte-size preserved).
 
 ## v1.1.4 changes
 

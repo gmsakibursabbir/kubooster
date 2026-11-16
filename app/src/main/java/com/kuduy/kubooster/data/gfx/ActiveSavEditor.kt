@@ -74,11 +74,68 @@ object ActiveSavEditor {
      */
     fun applyFpsLevel(bytes: ByteArray, level: Int): ByteArray? {
         require(level in 2..8) { "fps level out of range: $level" }
-        val props = readFpsProperties(bytes)
+        return applyLevel(bytes, level, ::isFpsProperty)
+    }
+
+    /**
+     * Graphics-quality properties: `ArtQuality`, `LobbyRenderQuality`,
+     * `BattleRenderQuality` (and any other `*RenderQuality`).
+     */
+    fun isQualityProperty(name: String): Boolean =
+        name == "ArtQuality" || name.endsWith("RenderQuality")
+
+    /**
+     * Game quality level per KuBooster preset (1 Smooth · 2 Balanced · 3 HD ·
+     * 4 HDR · 5 Ultra HD · 6 Super Smooth), per MK-PUBG-Mobile-Tool.
+     */
+    fun qualityLevel(presetKey: String): Int? = when (presetKey) {
+        "supersmooth" -> 6
+        "smooth" -> 1
+        "balanced" -> 2
+        "hd" -> 3
+        "ultrahdr" -> 5
+        else -> null
+    }
+
+    /** Like [applyFpsLevel] for the graphics-quality properties. */
+    fun applyQualityLevel(bytes: ByteArray, level: Int): ByteArray? {
+        require(level in 1..6) { "quality level out of range: $level" }
+        return applyLevel(bytes, level, ::isQualityProperty)
+    }
+
+    private fun applyLevel(bytes: ByteArray, level: Int, match: (String) -> Boolean): ByteArray? {
+        val props = readIntProperties(bytes).filter { match(it.name) }
         if (props.isEmpty()) return null
         val copy = bytes.copyOf()
         props.forEach { writeInt32(copy, it.valueOffset, level) }
         return copy
+    }
+
+    /**
+     * Diagnostic: every string in the save that looks like a frame-rate or
+     * quality setting name, with the type string that follows it (e.g.
+     * "BattleFPS : IntProperty"). Catches settings stored with types this
+     * editor does not write, so the log shows why an unlock could not apply.
+     */
+    fun describeRelevantStrings(bytes: ByteArray): List<String> {
+        val strings = mutableListOf<String>()
+        var start = -1
+        for (i in bytes.indices) {
+            val c = bytes[i].toInt() and 0xFF
+            if (c in 0x20..0x7E) {
+                if (start < 0) start = i
+            } else {
+                if (start >= 0 && c == 0 && i - start >= 3) {
+                    strings += String(bytes, start, i - start, Charsets.ISO_8859_1)
+                }
+                start = -1
+            }
+        }
+        val interesting = Regex("FPS|Frame|Quality|Render", RegexOption.IGNORE_CASE)
+        return strings.mapIndexedNotNull { i, s ->
+            if (!interesting.containsMatchIn(s) || s.endsWith("Property")) null
+            else "$s : ${strings.getOrNull(i + 1) ?: "?"}"
+        }.distinct().take(60)
     }
 
     /** Parses one IntProperty whose type tag starts at [tagAt]. */
