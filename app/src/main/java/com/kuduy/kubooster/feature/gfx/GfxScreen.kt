@@ -147,7 +147,7 @@ fun GfxScreen(
                 }
                 else -> {
                     if (state.gameRunning == true) {
-                        NoticeCard("PUBG is running. Close it completely (also from Recent apps) before applying.")
+                        NoticeCard("PUBG is running — KuBooster closes it automatically when you apply, then reopens it.")
                     }
 
                     SettingCard(Icons.Filled.SportsEsports, "Game Version") {
@@ -698,18 +698,23 @@ private fun SwipeToApply(enabled: Boolean, onSwiped: () -> Unit) {
 /** Restore + Discard, shown only while a backup exists. */
 @Composable
 private fun BackupCard(state: GfxUiState, onRemoveGfx: () -> Unit, onDiscardBackup: () -> Unit) {
-    if (!state.hasBackup) return
+    // Always visible: Restore from the backup, or — with no backup (e.g. after
+    // a reinstall) — Reset to default, which removes KuBooster's settings.
     KubeCard(Modifier.fillMaxWidth()) {
-        Text("Original settings saved", style = MaterialTheme.typography.titleSmall)
         Text(
-            "Restore puts back: ${state.restoreSummary ?: "original graphics config"}",
+            if (state.hasBackup) "Restore default settings" else "Reset to default",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            if (state.hasBackup) "Puts back: ${state.restoreSummary ?: "original graphics config"}"
+            else "Removes KuBooster's settings from the game. For frame rate and graphics, also use the game's Reset Graphics.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
         )
         Row(Modifier.padding(top = 4.dp)) {
             TextButton(onClick = onRemoveGfx, enabled = !state.busy) {
-                Text("Restore", color = MaterialTheme.colorScheme.error)
+                Text(if (state.hasBackup) "Restore" else "Reset", color = MaterialTheme.colorScheme.error)
             }
             if (state.restoreSummary != null) {
                 TextButton(onClick = onDiscardBackup, enabled = !state.busy) { Text("Discard backup") }
@@ -792,7 +797,7 @@ private fun ApplyConfirmDialog(
             InfoRow("Graphics", presetLabel)
             InfoRow("Resolution", resolutionLabel)
             Text(
-                "This edits PUBG's settings files. Edited game files can be detected and accounts can be banned for it — the same risk as every GFX tool. Your originals are backed up, but no outcome is guaranteed.",
+                "This edits PUBG's settings files. Edited game files can be detected and accounts can be banned for it — the same risk as every GFX tool. Your originals are backed up, but no outcome is guaranteed. If PUBG is open, it will be closed and reopened.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),

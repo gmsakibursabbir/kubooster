@@ -1,6 +1,14 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.9 (UI fixes: resolution segmented control, tile labels, sticky-bar overlap)**
+Last updated: 2026-11-16 · Build: **v1.1.10 (Flash apply/launch fix, Restore always available)**
+
+## v1.1.10 changes
+
+1. **Apply/Restore close a running game first** — via Shizuku `am force-stop`, verified with `pidof`. A game left in Recent apps (PUBG Flash especially) used to make every apply abort silently, so nothing was written and the game never opened.
+2. **Game launch via Shizuku `am start`** (resolved launcher activity, `monkey` fallback), then the Activity-context launch as a fallback — OEM launch restrictions can't block the shell user.
+3. **Restore / Reset to default always visible** — without a backup, removes every KuBooster-managed `+CVars` key from UserCustom.ini and the refresh-rate lock.
+4. **Backups mirrored beside the game files** (`*.kubooster-original`) and re-imported on load, so they survive a KuBooster reinstall.
+5. Diagnostics: `.ini` frame-rate scan under `Saved/`; Active.sav values logged before restore.
 
 ## v1.1.9 changes
 

@@ -311,6 +311,27 @@ object GfxConfigEditor {
         return out.joinToString(newline)
     }
 
+    /** Every key KuBooster may write: FPS keys, all preset keys, resolution, MSAA. */
+    val ALL_MANAGED_KEYS: Set<String> =
+        MANAGED_FPS_KEYS.toSet() +
+            GRAPHICS_PRESETS.values.flatMap { it.keys } +
+            "r.MobileContentScaleFactor" + "r.MobileMSAA"
+
+    /**
+     * Removes the `+CVars=` lines for [keys] (used by "Reset to default" when
+     * no backup exists): the game falls back to its own values for them.
+     * Everything else is left byte-for-byte untouched.
+     */
+    fun removeCvars(content: String, keys: Set<String>): String {
+        val newline = if (content.contains("\r\n")) "\r\n" else "\n"
+        return content.split("\r\n", "\n").filterNot { raw ->
+            val match = CVALS_LINE.find(raw) ?: return@filterNot false
+            val v = match.groupValues[2].trim()
+            val decoded = if (UserCustomCodec.isEncoded(v)) UserCustomCodec.decode(v) ?: v else v
+            decoded.substringBefore('=').trim() in keys
+        }.joinToString(newline)
+    }
+
     fun applyFps(content: String, fps: Int): String {
         require(fps in 30..240) { "unrealistic fps value: $fps" }
         return applyCvars(content, fpsEntries(fps))

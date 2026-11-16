@@ -204,6 +204,8 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                         val content = String(bytes, Charsets.ISO_8859_1)
                         val cvars = GfxConfigEditor.readCvars(content)
                         GfxLog.log("UserCustom.ini: ${bytes.size} bytes, ${cvars.size} CVars, FPS keys ${cvars.filterKeys { it in GfxConfigEditor.MANAGED_FPS_KEYS }}")
+                        // Bring back backups kept beside the game files (survive reinstalls).
+                        engine.importMirroredBackups(pkg)
                         val sav = engine.readSave(pkg)
                         logSave(pkg, sav)
                         engine.scanFpsSettings(pkg).forEach(GfxLog::log)
@@ -255,12 +257,12 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             val running = engine.isGameRunning(pkg)
             GfxLog.log("game running: ${running ?: "unknown"}")
             _state.update { it.copy(gameRunning = running) }
-            if (running == true) {
+            if (running == true && !closeForEdit(pkg)) {
                 _state.update {
                     it.copy(
                         busy = false,
                         applyPhase = GfxApplyPhase.Failed,
-                        message = "PUBG is running. Close it completely (also from Recent apps) — the game rewrites this file on exit — then apply again.",
+                        message = "PUBG is still running and couldn't be closed. Close it from Recent apps, then apply again.",
                     )
                 }
                 return@launch
@@ -294,6 +296,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 // The frame rate the game actually runs at lives in Active.sav,
                 // not in UserCustom.ini — without this step the unlock does nothing.
                 val saveResult = applySaveFps(pkg, fps, presetKey)
+                engine.mirrorBackups(pkg)
                 GfxLog.log("apply result: $saveResult")
                 val saveOk = saveResult == SaveFpsResult.Written
                 if (saveOk) syncRefreshRate(fps)
@@ -422,6 +425,19 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
      */
     fun launchGameFrom(context: Context) {
         val pkg = _state.value.selectedPackage ?: return
+        viewModelScope.launch {
+            // Shizuku first: `am start` as the shell user is not blocked by
+            // OEM "app launching other apps" restrictions (ColorOS/OxygenOS).
+            if (engine.launchGame(pkg)) {
+                GfxLog.log("game launch: started $pkg via Shizuku")
+            } else {
+                GfxLog.log("game launch: Shizuku start failed for $pkg — trying normal launch")
+                launchWithContext(context, pkg)
+            }
+        }
+    }
+
+    private fun launchWithContext(context: Context, pkg: String) {
         val pm = context.packageManager
         val intent = pm.getLaunchIntentForPackage(pkg)
             ?: pm.getLeanbackLaunchIntentForPackage(pkg)
@@ -429,11 +445,6 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 addCategory(Intent.CATEGORY_LAUNCHER)
                 setPackage(pkg)
             }
-        if (intent == null) {
-            GfxLog.log("game launch: no launcher intent for $pkg")
-            _state.update { it.copy(message = "Config applied — but PUBG could not be opened. Start it manually.") }
-            return
-        }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         try {
             GfxLog.log("game launch: starting $pkg")
@@ -453,16 +464,16 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             _state.update { it.copy(busy = true, message = null) }
             val running = engine.isGameRunning(pkg)
             _state.update { it.copy(gameRunning = running) }
-            if (running == true) {
+            if (running == true && !closeForEdit(pkg)) {
                 _state.update {
-                    it.copy(busy = false, message = "Close PUBG completely first, then remove.")
+                    it.copy(busy = false, message = "PUBG is still running and couldn't be closed. Close it from Recent apps, then try again.")
                 }
                 return@launch
             }
             val backup = engine.backupBytes(pkg)
             val saveBackup = engine.saveBackupBytes(pkg)
             if (backup == null && saveBackup == null) {
-                _state.update { it.copy(busy = false, message = "No backup stored yet — the config was never modified.") }
+                resetWithoutBackup(pkg)
                 return@launch
             }
             GfxLog.log("---- remove $pkg: ini backup ${backup != null}, sav backup ${saveBackup != null}")
@@ -476,6 +487,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 // would only suggest a restore is still pending). The next
                 // apply creates a fresh one automatically.
                 engine.deleteBackup(pkg)
+                engine.deleteMirrors(pkg, ini = true, sav = true)
             }
             _state.update {
                 it.copy(
@@ -490,6 +502,36 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             }
             if (ok) loadFile()
         }
+    }
+
+    /**
+     * "Reset to default" with no backup (e.g. after a reinstall wiped it):
+     * removes every KuBooster key from UserCustom.ini so the game uses its
+     * own values again, and removes the refresh-rate lock. Active.sav's
+     * original levels are unknown, so the game's own Reset Graphics is the
+     * way to reset those — the message says so.
+     */
+    private suspend fun resetWithoutBackup(pkg: String) {
+        GfxLog.log("---- reset $pkg without backup: removing KuBooster keys from UserCustom.ini")
+        val current = engine.readConfig(pkg)
+        val ok = current != null && engine.writeConfigVerified(
+            pkg,
+            GfxConfigEditor.removeCvars(String(current, Charsets.ISO_8859_1), GfxConfigEditor.ALL_MANAGED_KEYS)
+                .toByteArray(Charsets.ISO_8859_1),
+        )
+        engine.clearRefreshLock()
+        GfxLog.log("reset result: ${if (ok) "OK" else "FAILED"}; refresh-rate lock removed")
+        _state.update {
+            it.copy(
+                busy = false,
+                message = if (ok) {
+                    "KuBooster's settings removed. To reset frame rate and graphics too, open the game: Settings → Graphics → Reset Graphics."
+                } else {
+                    "Reset failed — the file was left unchanged. Try again with Shizuku running."
+                },
+            )
+        }
+        if (ok) loadFile()
     }
 
     /**
@@ -522,6 +564,7 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
     fun discardSaveBackup() {
         val pkg = _state.value.selectedPackage ?: return
         engine.deleteSaveBackup(pkg)
+        viewModelScope.launch { engine.deleteMirrors(pkg, ini = false, sav = true) }
         GfxLog.log("game-settings backup discarded for $pkg")
         _state.update {
             it.copy(
@@ -530,6 +573,20 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
                 message = "Backup discarded. Set graphics and frame rate in the game (or use its Reset Graphics), then apply again.",
             )
         }
+    }
+
+    /**
+     * The game rewrites its files when it exits, so it must not run while
+     * they are edited. After the user confirmed, close it ourselves instead
+     * of failing (a game left in Recent apps stays alive — PUBG Flash
+     * especially — which made every apply silently do nothing).
+     */
+    private suspend fun closeForEdit(pkg: String): Boolean {
+        GfxLog.log("game is running — closing it before editing")
+        val closed = engine.closeGame(pkg)
+        GfxLog.log("game closed: $closed")
+        _state.update { it.copy(gameRunning = !closed) }
+        return closed
     }
 
     private fun hasAnyBackup(pkg: String) = engine.backupExists(pkg) || engine.saveBackupExists(pkg)

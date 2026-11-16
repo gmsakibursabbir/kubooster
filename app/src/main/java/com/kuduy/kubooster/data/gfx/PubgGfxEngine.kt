@@ -49,6 +49,20 @@ class PubgGfxEngine(
         String(result.stdout, Charsets.ISO_8859_1).contains("KUB_YES")
     }
 
+    /**
+     * Closes the game (`am force-stop`) so its files can be edited safely,
+     * then reports whether it is really gone. Only ever called right after
+     * the user confirmed an apply/restore.
+     */
+    suspend fun closeGame(packageName: String): Boolean {
+        withContext(dispatchers.io) { shizuku.runShell("am force-stop '$packageName'") }
+        repeat(5) {
+            if (isGameRunning(packageName) == false) return true
+            kotlinx.coroutines.delay(300)
+        }
+        return isGameRunning(packageName) == false
+    }
+
     /** True when the game process is alive — the file must not be edited then. */
     suspend fun isGameRunning(packageName: String): Boolean? = withContext(dispatchers.io) {
         val result = shizuku.runShell("pidof '$packageName'") ?: return@withContext null
@@ -171,6 +185,55 @@ class PubgGfxEngine(
             out += "  $name (${bytes.size} B): " + hits.joinToString(" | ").ifEmpty { "no FPS lines" }
         }
         out
+    }
+
+    /**
+     * Opens the game through Shizuku (`am start` as the shell user, exactly
+     * what `adb shell am start` does). OEM skins such as ColorOS/OxygenOS and
+     * MIUI silently block one app from starting another; the shell user is
+     * not subject to that. Returns true when the activity manager accepted it.
+     */
+    suspend fun launchGame(packageName: String): Boolean = withContext(dispatchers.io) {
+        val script = "c=\$(cmd package resolve-activity --brief -c android.intent.category.LAUNCHER '$packageName' | tail -n 1); " +
+            "case \"\$c\" in */*) am start -n \"\$c\" >/dev/null 2>&1 && echo KUB_OK && exit 0;; esac; " +
+            "monkey -p '$packageName' -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 && echo KUB_OK"
+        val r = shizuku.runShell(script) ?: return@withContext false
+        String(r.stdout, Charsets.ISO_8859_1).contains("KUB_OK")
+    }
+
+    // ---- Backup mirror beside the game's files ----------------------------
+    //
+    // App-private backups vanish when KuBooster is uninstalled (e.g. when a
+    // release build replaces a differently-signed test build). A copy is
+    // kept next to the game's own files too, so Restore survives reinstalls.
+
+    private fun iniMirror(pkg: String) = configPath(pkg) + ".kubooster-original"
+    private fun savMirror(pkg: String) = savePath(pkg) + ".kubooster-original"
+
+    /** Copies the app-private backups next to the game files (best effort). */
+    suspend fun mirrorBackups(pkg: String) {
+        backupBytes(pkg)?.let { if (readFile(iniMirror(pkg)) == null) writeFileVerified(iniMirror(pkg), it) }
+        saveBackupBytes(pkg)?.let { if (readFile(savMirror(pkg)) == null) writeFileVerified(savMirror(pkg), it) }
+    }
+
+    /** Re-imports mirrored backups into app storage when they are missing there. */
+    suspend fun importMirroredBackups(pkg: String) {
+        if (!backupFile(pkg).exists()) readFile(iniMirror(pkg))?.let { storeBackup(pkg, it) }
+        if (!saveBackupFile(pkg).exists()) readFile(savMirror(pkg))?.let { storeSaveBackup(pkg, it) }
+    }
+
+    suspend fun deleteMirrors(pkg: String, ini: Boolean, sav: Boolean) = withContext(dispatchers.io) {
+        if (ini) shizuku.runShell("rm -f '${iniMirror(pkg)}'")
+        if (sav) shizuku.runShell("rm -f '${savMirror(pkg)}'")
+    }
+
+    /**
+     * No-backup fallback for "Reset to default": unlocks the refresh rate
+     * (the original values are unknown, so the lock is simply removed).
+     */
+    suspend fun clearRefreshLock() = withContext(dispatchers.io) {
+        shizuku.runShell("settings delete system min_refresh_rate")
+        refreshBackupFile().delete()
     }
 
     // ---- Display refresh-rate lock -------------------------------------
