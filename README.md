@@ -42,6 +42,7 @@ It is built on one non-negotiable principle: **it never shows you a number it ca
 | ↩️ | **One-tap Restore** | Every change is journaled with its *original* value. Restore one change or all — always back to exactly what was there before. |
 | 🎨 | **Graphics Presets** | Smooth Performance / Balanced / High Quality, tailored to your RAM tier and thermal state — applied by you inside PUBG's own settings menu. |
 | ⚡ | **Shizuku (optional)** | Grants `WRITE_SECURE_SETTINGS` for battery-saver & animation controls via two compile-time-fixed commands. Every core feature works without it. |
+| 🛠️ | **GFX mode (UserCustom.ini editor)** | The real FPS unlock: reads PUBG's `UserCustom.ini` through Shizuku (no root), sets the game's frame-rate keys (`r.PUBGDeviceFPS*`) to 30/60/90/120, verifies the write byte-exact, and keeps an automatic restorable backup. Works with PUBG Mobile **and** PUBG Mobile Flash. |
 | 🎯 | **Game variant pinning** | Choose which PUBG Mobile flavor (Global / Flash / KR / VN / BGMI) the app targets, or leave it on Auto-detect. FPS & graphics guidance follow your pick. |
 | 🔄 | **In-app updates** | Checks the official GitHub Releases for newer versions (toggle in Settings) and downloads the signed APK from `github.com` only. No analytics, no other servers. |
 
@@ -82,26 +83,47 @@ See the honest state of each FPS option on **your** device:
 
 > **A 120 Hz display does not mean 120 FPS gameplay.** The game renders FPS on its own — KuBooster never reports the display rate as game FPS.
 
+**Want to force the game's options anyway?** Open **GFX mode** (5th tab). It edits PUBG's `UserCustom.ini` so the game itself offers higher frame rates — see the GFX section below.
+
 ### 5 · Graphics Optimizer
 Pick a preset (Smooth / Balanced / Quality) and follow the concrete in-game settings shown for your hardware tier. **You apply them inside PUBG's own settings menu, once.** PUBG stores those settings itself — that's why they persist every time you reopen the game. KuBooster writes nothing into the game.
 
 ### 6 · Shizuku (optional)
 Two extra controls (battery saver, animation speed) need a system-level permission. KuBooster shows the exact command it will run (`pm grant com.kuduy.kubooster android.permission.WRITE_SECURE_SETTINGS`) before asking. Skip it freely — the app is fully functional without it.
 
+### 7 · GFX mode (the FPS unlock)
+
+This is the feature that makes KuBooster a real GFX tool. It edits PUBG's own config file:
+
+1. **Install & start [Shizuku](https://shizuku.rikka.app)** — free, no root. On Android 11+ you can start it via wireless debugging on the phone itself (no PC).
+2. Open the **GFX** tab, pick your game (Global / Flash / KR / VN / BGMI).
+3. KuBooster reads `Android/data/<pkg>/files/UE4Game/ShadowTrackerExtra/ShadowTrackerExtra/Saved/Config/Android/UserCustom.ini` through Shizuku and shows the game's current frame-rate keys, decoded.
+4. Pick **30 / 60 / 90 / 120 FPS**, read the warning, check *"I understand the risk"*, tap **Apply**.
+5. The file is written through Shizuku and **verified by reading it back**. The untouched original is backed up in the app's private storage.
+6. Fully close PUBG (also from Recent apps), start it, and pick the new frame rate in the game's own graphics settings.
+7. **Restore original config** — one tap puts the pristine file back, byte-exact.
+
+Technical detail: the `+CVars` values in `UserCustom.ini` are hex-encoded XOR-0x79; KuBooster decodes and re-encodes them natively (unit-tested against the published reference corpus), sets `r.PUBGDeviceFPSLow/Mid/High/HDR/UltraHDR` to your target, and leaves every other byte of the file untouched. Game updates can regenerate the file — apply again if a game update resets your FPS.
+
 ## 🔐 Safety & Anti-Ban Policy
 
 **The honest answer first:** no third-party app can promise 100% that an account will never be banned — bans are decided solely by Tencent/Level Infinite's anti-cheat. Anyone promising otherwise is lying to you.
 
-What **is** guaranteed by KuBooster's design:
+KuBooster now has two clearly separated modes:
 
-- 🚫 **Never modifies the game** — no PUBG files, folders, config, memory, or processes. Ever. The only operations the app can perform are fixed at compile time and audited in [`docs/SECURITY.md`](docs/SECURITY.md)
+**Safe mode (default, system settings):**
+- 🚫 No PUBG files are touched — boost, restore and graphics guidance work entirely on ordinary Android settings, reversibly and verified by read-back
 - 🚫 **No gameplay automation** — no aim assist, no recoil tools, no injected code
-- 🚫 **No arbitrary shell commands** — the Shizuku allowlist contains exactly two commands (`pm grant` / `pm revoke` of our own permission), visible in the app before anything runs
-- 🚫 **No network** — no INTERNET permission, no analytics, no ads, fully offline
-- ✅ **In-game settings stay yours** — graphics presets are applied by *you* inside PUBG's settings menu, the way the game intends. Nothing for anti-cheat to flag
-- ✅ **System settings are standard** — refresh-rate preference, brightness, battery saver, animation scale are ordinary Android settings, changed reversibly and verified
+- ✅ Graphics presets are applied by *you* inside PUBG's settings menu, the way the game intends
 
-KuBooster performs zero game modification, so it adds **no ban risk from its own side**.
+**GFX mode (opt-in, explicit, requires Shizuku):**
+- 🛠️ Edits PUBG's own `UserCustom.ini` to set its frame-rate keys — the same category of change every GFX tool makes
+- ⚠️ **Modified game configs are detectable by anti-cheat and accounts can be banned for it.** The app says this in a confirmation dialog that you must explicitly acknowledge before anything is written. No guarantee of any outcome is given or implied.
+- ✅ The pristine file is backed up automatically before the first edit and can be restored **byte-exact** at any time
+- ✅ Writes are verified by reading the file back — "applied" always means verified
+- 🚫 The game is checked to be closed before any edit (it rewrites the config on exit)
+
+Everything KuBooster does is audited in [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## 🛠️ Building from Source
 

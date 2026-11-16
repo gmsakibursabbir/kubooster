@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +35,7 @@ import kotlin.math.roundToInt
 fun FpsScreen(
     state: FpsScreenState,
     onRetry: () -> Unit,
+    onOpenGfx: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -150,6 +152,19 @@ fun FpsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+
+        // Action path: the FPS screen reports facts; GFX mode changes them.
+        Spacer(Modifier.height(12.dp))
+        KubeCard(Modifier.fillMaxWidth()) {
+            SectionTitle("Want to force these options?", Modifier)
+            Text(
+                "This screen only reports what your display and the game officially support. GFX mode can set the game's frame-rate options directly — the same edit every GFX tool makes. Requires the free Shizuku app (no root). Modified configs are detectable and accounts can be banned; the original file is backed up and restorable.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+            )
+            Button(onClick = onOpenGfx) { Text("Open GFX mode") }
         }
 
         Spacer(Modifier.height(24.dp))

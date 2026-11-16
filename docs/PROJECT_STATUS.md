@@ -1,6 +1,20 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.0.3 (game variant selector + in-app updates)**
+Last updated: 2026-11-16 · Build: **v1.1.0 (GFX mode — real UserCustom.ini FPS unlock)**
+
+## v1.1.0 changes
+
+1. **GFX mode (the FPS unlock)** — a new tab that edits PUBG's `UserCustom.ini` directly:
+   - Decodes the file's hex-encoded XOR-0x79 `+CVars` values natively (`UserCustomCodec`), unit-tested against the published reference decoder corpus.
+   - Sets `r.PUBGDeviceFPSLow/Mid/High/HDR/UltraHDR` to 30/60/90/120 (`GfxConfigEditor`, pure + fully tested) so the game itself offers higher frame rates — works on PUBG Mobile and PUBG Mobile Flash.
+   - All file access via Shizuku (`sh -c` under ADB privileges, no root): existence check, read, `pidof` game-running check, staged write via `/data/local/tmp` + `cp`, read-back byte verification.
+   - Automatic byte-exact backup in app-private storage before the first edit; one-tap restore.
+   - Explicit acknowledge-checkbox warning that modified configs are detectable and can be banned; no outcome guaranteed.
+   - Requires the game to be closed; reports honest diagnostics (config folder listing) when the file is not found.
+2. **FPS screen now funnels into GFX mode** — labels stay honest; a card explains the facts and offers "Open GFX mode".
+3. Bottom navigation is now 5 tabs (Home / FPS / GFX / Graphics / Settings).
+
+Design stance change: previous versions refused game-file modification entirely. The user (product owner) requested the GFX-tool capability; it is now implemented as a clearly separated, opt-in, warned, backed-up mode rather than silently absent. The safe-mode features remain untouched and unchanged.
 
 ## v1.0.3 changes
 
@@ -64,7 +78,7 @@ Last updated: 2026-11-16 · Build: **v1.0.3 (game variant selector + in-app upda
 
 | Artifact | Status |
 |---|---|
-| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **2.01 MB** (v1.0.3); `apksigner verify` passes |
+| `app/build/outputs/apk/release/app-release.apk` | Built, R8-minified, signed — **2.03 MB** (v1.1.0); `apksigner verify` passes |
 
 Signing: keystore password mismatch in `keystore.properties` was the only release-build blocker; corrected against the keystore note copy kept outside the repository (`J:\devtools\kubooster-keystore-note.txt`).
 

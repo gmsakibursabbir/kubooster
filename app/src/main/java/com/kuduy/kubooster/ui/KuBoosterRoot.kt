@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -40,6 +41,8 @@ import com.kuduy.kubooster.feature.diagnostics.DiagnosticsScreen
 import com.kuduy.kubooster.feature.diagnostics.DiagnosticsViewModel
 import com.kuduy.kubooster.feature.fps.FpsScreen
 import com.kuduy.kubooster.feature.fps.FpsViewModel
+import com.kuduy.kubooster.feature.gfx.GfxScreen
+import com.kuduy.kubooster.feature.gfx.GfxViewModel
 import com.kuduy.kubooster.feature.graphics.GraphicsScreen
 import com.kuduy.kubooster.feature.graphics.GraphicsViewModel
 import com.kuduy.kubooster.feature.onboarding.OnboardingScreen
@@ -56,6 +59,7 @@ object Routes {
     const val ONBOARDING = "onboarding"
     const val DASHBOARD = "dashboard"
     const val FPS = "fps"
+    const val GFX = "gfx"
     const val GRAPHICS = "graphics"
     const val DIAGNOSTICS = "diagnostics"
     const val SHIZUKU = "shizuku"
@@ -68,6 +72,7 @@ private data class TopDestination(val route: String, val label: String, val icon
 private val topDestinations = listOf(
     TopDestination(Routes.DASHBOARD, "Home", Icons.Filled.Home),
     TopDestination(Routes.FPS, "FPS", Icons.Filled.Speed),
+    TopDestination(Routes.GFX, "GFX", Icons.Filled.VideogameAsset),
     TopDestination(Routes.GRAPHICS, "Graphics", Icons.Filled.Tune),
     TopDestination(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
 )
@@ -176,7 +181,24 @@ fun KuBoosterRoot(container: AppContainer) {
             composable(Routes.FPS) {
                 val vm: FpsViewModel = viewModel(factory = FpsViewModel.factory(container))
                 val fpsState by vm.state.collectAsState()
-                FpsScreen(state = fpsState, onRetry = { vm.refresh() })
+                FpsScreen(
+                    state = fpsState,
+                    onRetry = { vm.refresh() },
+                    onOpenGfx = { navController.navigate(Routes.GFX) },
+                )
+            }
+            composable(Routes.GFX) {
+                val vm: GfxViewModel = viewModel(factory = GfxViewModel.factory(container))
+                LaunchedEffect(Unit) { vm.refresh() }
+                val gfxState by vm.state.collectAsState()
+                GfxScreen(
+                    state = gfxState,
+                    onRefresh = { vm.refresh() },
+                    onSelectTarget = { vm.selectTarget(it) },
+                    onRequestShizuku = { container.shizukuRepository.requestPermission() },
+                    onApplyFps = { vm.applyFps(it) },
+                    onRestore = { vm.restoreOriginal() },
+                )
             }
             composable(Routes.GRAPHICS) {
                 val vm: GraphicsViewModel = viewModel(factory = GraphicsViewModel.factory(container))
