@@ -9,6 +9,7 @@ import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
 import com.kuduy.kubooster.data.gfx.GfxLog
 import com.kuduy.kubooster.data.gfx.PubgGfxEngine
+import com.kuduy.kubooster.data.gfx.RefreshRatePicker
 import com.kuduy.kubooster.di.AppContainer
 import com.kuduy.kubooster.domain.model.DetectionState
 import com.kuduy.kubooster.domain.model.GameMetadata
@@ -70,6 +71,8 @@ data class GfxUiState(
     val resolutionKey: String = "default",
     /** MSAA on/off; off by default because it costs frame rate. */
     val antiAliasing: Boolean = false,
+    /** Screen refresh rates in whole Hz (e.g. [60, 120]); used to warn about uneven FPS. */
+    val panelHz: List<Int> = emptyList(),
     /** Drives the full-screen apply overlays. */
     val applyPhase: GfxApplyPhase = GfxApplyPhase.Idle,
 )
@@ -126,7 +129,9 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
             _state.update {
                 it.copy(
                     targets = installed,
+                    panelHz = RefreshRatePicker.normalize(engine.supportedRefreshRates()),
                     selectedPackage = preferred?.variant?.packageName,
+                    fpsTarget = if (preferred?.variant == GameVariant.FLASH) minOf(it.fpsTarget ?: 60, 60) else it.fpsTarget,
                     busy = false,
                     hasBackup = preferred?.let { t -> hasAnyBackup(t.variant.packageName) } ?: false,
                 )
@@ -136,7 +141,15 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun selectTarget(packageName: String) {
-        _state.update { it.copy(selectedPackage = packageName, hasBackup = hasAnyBackup(packageName)) }
+        _state.update {
+            it.copy(
+                selectedPackage = packageName,
+                hasBackup = hasAnyBackup(packageName),
+                // PUBG Flash caps the frame rate itself on many phones; forcing
+                // more only adds lag. Start at 60 there — the user can still pick higher.
+                fpsTarget = if (packageName == GameVariant.FLASH.packageName) minOf(it.fpsTarget ?: 60, 60) else it.fpsTarget,
+            )
+        }
         loadFile()
     }
 
@@ -407,13 +420,17 @@ class GfxViewModel(private val container: AppContainer) : ViewModel() {
      * below, any earlier lock is undone.
      */
     private suspend fun syncRefreshRate(fps: Int) {
-        val max = engine.maxRefreshRate()
-        if (fps > 60 && max > 60f) {
-            val readBack = engine.lockRefreshRate(max)
-            GfxLog.log("refresh rate locked to ${max}Hz (panel max): $readBack")
+        val panel = _state.value.panelHz
+        val target = RefreshRatePicker.pick(fps, panel)
+        if (target != null) {
+            val readBack = engine.lockRefreshRate(target.toFloat())
+            GfxLog.log("refresh rate locked to ${target}Hz for $fps FPS (panel: $panel): $readBack")
+            if (!RefreshRatePicker.isSmooth(fps, panel)) {
+                GfxLog.log("warning: $fps FPS can't be paced evenly on a $panel Hz screen — expect stutter; 60 or ${panel.max()} is smoother")
+            }
         } else {
             engine.restoreRefreshRate()?.let { GfxLog.log("refresh rate lock removed: $it") }
-            if (fps > 60) GfxLog.log("panel max is ${max}Hz — screen can't show more than that")
+            if (fps > 60) GfxLog.log("panel is $panel Hz — screen can't show more than 60")
         }
     }
 

@@ -1,6 +1,12 @@
 # Project Status
 
-Last updated: 2026-11-16 · Build: **v1.1.10 (Flash apply/launch fix, Restore always available)**
+Last updated: 2026-11-16 · Build: **v1.1.11 (refresh rate matched to FPS, stutter + Flash warnings)**
+
+## v1.1.11 changes
+
+1. **`RefreshRatePicker`** — locks the lowest panel rate that is a whole multiple of the target FPS (max as fallback); no lock at ≤ 60 FPS. Unit-tested (`RefreshRatePickerTest`).
+2. **Stutter warning** on the FPS card when the panel has no even mode for the chosen FPS (e.g. 90 on 60/120 Hz).
+3. **PUBG Flash defaults to 60 FPS** with a warning above 60 — Flash's own cap can't be lifted from its files (diagnostic scan found no FPS limit in any Flash config).
 
 ## v1.1.10 changes
 

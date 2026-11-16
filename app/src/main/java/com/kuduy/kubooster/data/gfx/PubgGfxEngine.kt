@@ -248,6 +248,9 @@ class PubgGfxEngine(
     private val refreshKeys = listOf("peak_refresh_rate", "min_refresh_rate")
     private fun refreshBackupFile() = File(backupDir(), "refresh_rate.txt")
 
+    fun supportedRefreshRates(): List<Float> = com.kuduy.kubooster.system.DisplayCapabilitiesProvider(context)
+        .read().supportedRefreshRatesHz
+
     fun maxRefreshRate(): Float = com.kuduy.kubooster.system.DisplayCapabilitiesProvider(context)
         .read().supportedRefreshRatesHz.maxOrNull() ?: 60f
 

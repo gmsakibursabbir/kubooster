@@ -78,6 +78,7 @@ import com.kuduy.kubooster.core.designsystem.KubeCard
 import com.kuduy.kubooster.data.gfx.ActiveSavEditor
 import com.kuduy.kubooster.data.gfx.GfxConfigEditor
 import com.kuduy.kubooster.data.gfx.GfxLog
+import com.kuduy.kubooster.data.gfx.RefreshRatePicker
 import com.kuduy.kubooster.domain.model.GameVariant
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -203,7 +204,18 @@ fun GfxScreen(
                                     selected = state.fpsTarget,
                                     onSelect = onSelectFps,
                                 )
-                                Hint("For 90 or 120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate.")
+                                val fps = state.fpsTarget
+                                val isFlash = state.selectedPackage == GameVariant.FLASH.packageName
+                                when {
+                                    fps != null && fps > 60 && isFlash -> Warning(
+                                        "PUBG Flash limits the frame rate itself on many phones. If the in-game FPS meter stays at 60, use 60 — forcing more only adds lag.",
+                                    )
+                                    fps != null && fps > 60 && state.panelHz.isNotEmpty() &&
+                                        !RefreshRatePicker.isSmooth(fps, state.panelHz) -> Warning(
+                                        "Your screen runs at ${state.panelHz.joinToString("/")} Hz, so $fps FPS can't be shown evenly and may stutter. ${state.panelHz.max()} or 60 is smoother.",
+                                    )
+                                    else -> Hint("For 90 or 120, pick Super Smooth or Smooth — higher graphics make the game lower the frame rate.")
+                                }
                             }
 
                             // Restore first: it must never be buried below the fold.
@@ -594,6 +606,16 @@ private fun Hint(text: String) {
         text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 10.dp),
+    )
+}
+
+@Composable
+private fun Warning(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
         modifier = Modifier.padding(top = 10.dp),
     )
 }
